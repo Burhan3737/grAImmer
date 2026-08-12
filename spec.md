@@ -2,8 +2,8 @@
 
 A browser extension that checks spelling and grammar in the text boxes you type into, using rules and word lists rather than AI.
 
-**Status:** design in progress
-**Last updated:** 2026-08-11
+**Status:** Phase 1 built. All automated checks passing; real-site behaviour still needs manual QA (see §9).
+**Last updated:** 2026-08-13
 
 ---
 
@@ -218,6 +218,38 @@ Recorded with reasoning so the work isn't re-derived later.
 **Chrome Web Store publishing.** D14.
 
 ---
+
+## 9. Current state
+
+Built and passing: **61 unit + 12 harness + 16 end-to-end = 89 automated checks.**
+
+| Decision | Built? | Notes |
+|---|---|---|
+| D1 live in editable fields | yes | attaches on focus |
+| D2 squiggles + badge + panel | yes | badge shows a count, panel lists all issues |
+| D3 check categories 1–6 | yes | all six, including spelling |
+| D5/D6 field types and site tiers | yes | profiles for all five named sites |
+| D8/D9 dictionary | yes | nspell + Hunspell en-US, ~91 ms init |
+| D12 six skip rules | yes | all six, individually toggleable |
+| D13 Chrome + Edge | Chrome verified | Edge is the same MV3 package but has not been loaded |
+| D14 load unpacked | yes | `npm run build` → `dist/extension` |
+| D16 no keep-alive | yes | plus the content-script result cache |
+| Personal dictionary | yes | add, remove, manage; synced, chunked for the 8 KB quota |
+
+**Four bugs were caught by tests during the build**, each of which would otherwise have shipped:
+
+1. Periods inside `3.5` and `grafana.acme.io` split sentences, so the next word was flagged as an uncapitalized sentence start.
+2. The proper-noun skip suppressed *spacing* errors — which produced the purpose-scoped `excludeReasons` mechanism.
+3. The mirror layer sat below the textarea, so the textarea intercepted every click and no squiggle was clickable. Identical appearance, entirely broken interaction.
+4. The card focused its own first suggestion, firing `focusout` on the field, whose handler closed the card. It dismissed itself.
+
+**Not verified, and cannot be automated** — the manual QA checklist is in `docs/TEST-CASES.md`:
+
+- Real Gmail, Outlook, Slack and LinkedIn behaviour
+- That an applied fix survives into a genuinely sent email
+- Caret restoration inside a real rich editor
+- Service worker suspension in practice
+- Whether underlines sit pleasantly at every font size and zoom level
 
 ## 8. Open
 

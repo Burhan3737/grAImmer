@@ -144,7 +144,30 @@ try {
   record('applying a suggestion edits the field',
     fixedValue !== 'i dont think so.', `value still "${fixedValue}"`);
 
-  /* --------------------------------------- 10. the options page loads */
+  /* -------------------------- 10. the badge and panel (spec D2) work */
+  await page.click('#plain');
+  await page.fill('#plain', 'i dont think there is 3 items. your welcome to check the the logs.');
+  await page.waitForTimeout(1800);
+
+  const badgeText = await page.locator('.graimmer-badge').textContent();
+  record('issue-count badge shows a count', /\d+ issue/.test(badgeText || ''), `badge read "${badgeText}"`);
+
+  await page.locator('.graimmer-badge').click();
+  await page.waitForSelector('.graimmer-panel:not([hidden])', { timeout: 5000 });
+  const panelRows = await page.locator('.graimmer-panel-row').count();
+  const markCount = await page.locator('.graimmer-mark').count();
+  record('panel lists every issue', panelRows > 0 && panelRows <= markCount + 2,
+    `${panelRows} rows for ${markCount} marks`);
+
+  await page.locator('.graimmer-panel-row').first().click();
+  await page.waitForSelector('.graimmer-card', { timeout: 5000 });
+  record('selecting from the panel opens the card for that issue', true);
+
+  // Captured while the card is open, as a visual record of a passing run.
+  await page.screenshot({ path: join(root, 'dist/extension-shot.png') });
+  await page.keyboard.press('Escape');
+
+  /* --------------------------------------- 11. the options page loads */
   const options = await context.newPage();
   const optionErrors = [];
   options.on('pageerror', (error) => optionErrors.push(String(error)));

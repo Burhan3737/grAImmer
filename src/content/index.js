@@ -15,6 +15,7 @@ import { createPlainAdapter } from './adapters/plain.js';
 import { createRichAdapter } from './adapters/rich.js';
 import { createOverlay } from './overlay.js';
 import { createCard } from './card.js';
+import { createBadge } from './badge.js';
 import { profileForHost, impossibleForHost, IGNORE_DATA_GRAMM_BY_DEFAULT } from './site-profiles.js';
 
 const DEBOUNCE_MS = 500;
@@ -91,6 +92,7 @@ function detach() {
   active.observer?.disconnect();
   active.resizeObserver?.disconnect();
   active.overlay.destroy();
+  active.badge.destroy();
   active.adapter.destroy();
   clearTimeout(active.timer);
   active = null;
@@ -110,8 +112,27 @@ function attach(element) {
     onMarkClick: (issue, rect) => card.open(issue, rect),
   });
 
+  // Selecting from the panel opens the same card as clicking the underline.
+  // The anchor is re-measured rather than remembered, because the text may
+  // have reflowed since the panel was populated.
+  const badge = createBadge({
+    onSelect: (issue) => {
+      const boxes = adapter.getBoxes(issue.start, issue.end, { clip: true });
+      const container = adapter.getContainerRect();
+      const anchor = boxes.length
+        ? {
+            left: container.left + boxes[0].left,
+            top: container.top + boxes[0].top,
+            width: boxes[0].width,
+            height: boxes[0].height,
+          }
+        : container;
+      card.open(issue, anchor);
+    },
+  });
+
   active = {
-    element, adapter, overlay, card,
+    element, adapter, overlay, card, badge,
     timer: null, issues: [], ignored: new Set(), raf: null,
     observer: null, resizeObserver: null,
   };
@@ -179,6 +200,7 @@ function paint(issues) {
   active.issues = issues;
   active.adapter.sync?.();
   active.overlay.paint(issues, profile.scrollContainerIsField);
+  active.badge.update(issues, active.adapter.getContainerRect());
 }
 
 function schedulePaint() {
@@ -190,6 +212,7 @@ function schedulePaint() {
     // course, so a cached text node may be detached and measure nothing.
     active.adapter.sync?.();
     active.overlay.paint(active.issues, profile.scrollContainerIsField);
+    active.badge.update(active.issues, active.adapter.getContainerRect());
   });
 }
 

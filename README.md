@@ -36,6 +36,8 @@ Re-run `npm run build` and press reload on the extension card to pick up changes
 | Spacing and repeats | Let me know **the the** date | the |
 | Subject–verb agreement | **There is 3** items | There are 3 |
 
+Two ways to fix things: click any underline for a suggestion card, or click the **issue-count badge** in the corner of the field to see every problem in one list before you send.
+
 **Confused word pairs matter most for email.** Every word in that category is spelled correctly, so no dictionary can catch them — they need patterns that read the surrounding words.
 
 ## What it will miss
