@@ -8,8 +8,9 @@
 
 import { check } from '../src/core/engine.js';
 import { CASES, runCases } from './cases.js';
+import { runGeometryCases } from './geometry-cases.js';
 
-const results = runCases(check, CASES);
+const results = [...runCases(check, CASES), ...runGeometryCases()];
 const failed = results.filter((r) => !r.pass);
 
 const groups = [...new Set(results.map((r) => r.group))];

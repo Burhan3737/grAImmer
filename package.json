@@ -10,5 +10,9 @@
   },
   "devDependencies": {
     "playwright": "^1.62.1"
+  },
+  "dependencies": {
+    "dictionary-en": "^4.0.0",
+    "nspell": "^2.1.5"
   }
 }
