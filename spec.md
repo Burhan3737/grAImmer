@@ -36,6 +36,10 @@ Every decision below was made explicitly during design. The "why" column is the 
 | D13 | Browser target | Chrome + Edge | Both Chromium, both run the same MV3 package unmodified. Firefox is a genuine third target (`browser.*` vs `chrome.*`, different background lifetime) and isn't worth it yet. |
 | D14 | Distribution | Load unpacked (developer mode) | No store fee, no review delay, no justifying `<all_urls>` to reviewers while the design is still moving. Build artifact is identical either way, so publishing later costs nothing. |
 | D15 | Work split | Rules run in the content script; dictionary lives in the background worker | Categories 2–6 are small pattern tables that run instantly with no messaging. Only unknown words cross the process boundary, and answers are cached. |
+| D16 | Service worker keep-alive | **No keep-alive port. Re-initialise the dictionary on every wake.** Cache results in the content script instead | **Revises the original design.** Harper (Automattic) ships exactly this — a local MV3 grammar checker whose 769 KB dictionary is re-instantiated on every wake, with no keepalive and plain `sendMessage`. Measured: re-parsing costs ~104 ms, while rehydrating a persisted structure costs ~170 ms, so persistence is a net loss. A result cache in the content script removes the round-trip entirely for most keystrokes, which is a better lever than anything on the worker side. |
+| D17 | Offscreen document | Rejected | Nobody uses it as a persistent heap. uBOL uses it as transient compute and closes it immediately; Bitwarden tried it for CPU-bound work and reverted over decryption errors. Chrome's migration guide reserves the right to act against indefinite lifetime extension. |
+| D18 | Sentence segmentation | Hand-written guarded matcher with an abbreviation list — **not `Intl.Segmenter`** | UAX #29 rule SB8 forbids breaking before a lowercase letter after a period. But "this sentence starts lowercase" is precisely the error our capitalization rule exists to catch, so the platform API is structurally unable to help. Measured on our own rule set: `Intl.Segmenter` caught 2 of 8 real errors; the guarded matcher caught 7–8 of 8 while silencing every trap. Verified identical in Chrome 151, Edge 151 and Node 22. |
+| D19 | Testing stack | Vitest for pure logic, Playwright for browser truth, local fixture pages for site behaviour | jsdom has no layout engine, so `getClientRects()` returns nothing and overlay positioning cannot be unit-tested at all. Real Gmail in CI is not done by anyone — Harper, Refined GitHub and Dark Reader all abandoned or never attempted it. |
 
 ---
 
@@ -131,11 +135,63 @@ Consequence: scrolling, typing and resizing all invalidate the measured coordina
 
 ### 5.4 The MV3 service worker constraint
 
-Chrome terminates idle background workers after ~30 seconds. A cold worker must reload and re-parse the dictionary, stalling the first check after any pause — the most likely way grAImmer feels broken.
+Chrome terminates idle background workers after ~30 seconds. A cold worker must reload and re-parse the dictionary, stalling the first check after any pause.
 
-**Mitigation:** the content script opens a long-lived port to the worker when an editable field is focused. An open port keeps the worker alive; closing the field lets it terminate. This is designed in, not bolted on.
+**This section originally proposed a long-lived keep-alive port. That was wrong, and research into shipping precedent corrected it.**
+
+[Harper](https://github.com/Automattic/harper) is the closest existing analogue — a local, no-network grammar checker in MV3. Its production architecture uses no keepalive and no long-lived port, just plain `sendMessage`, and re-instantiates its 769 KB dictionary on every wake. Two measurements explain why that is fine:
+
+- Re-parsing the dictionary costs ~104 ms.
+- Rehydrating a persisted structure costs ~170 ms — *slower* than re-parsing, so caching preprocessed data is a net loss.
+
+**The actual mitigation is a result cache in the content script.** Harper caches lint results per element and batches identical requests. With a cache in the page, the worker's lifecycle stops mattering for the overwhelming majority of keystrokes, because most words never need to cross the boundary at all. This is a better lever than anything applied to the worker itself.
 
 Because rules run in the page (D15), a cold worker delays only spelling underlines. Grammar, apostrophe, capitalization and spacing underlines have already rendered.
+
+**Two hard constraints discovered alongside this**, both of which remove options that might otherwise be assumed available:
+
+- An MV3 service worker **cannot spawn a Web Worker**, so dictionary initialisation cannot be moved off the worker's event loop.
+- WASM cannot be loaded from a blob or base64 URL under MV3's security requirements; it must be a bundled file.
+
+### 5.5 Sentence segmentation
+
+Segmentation is not a detail — the capitalization rule depends entirely on knowing where sentences begin.
+
+The platform's `Intl.Segmenter` cannot be used, for a reason worth recording so it is not "rediscovered" later as an optimisation. UAX #29 rule SB8 forbids a break before a lowercase letter following a period; that is how ICU handles abbreviations. But *"sentence begins with a lowercase letter"* is exactly the error being detected, so the API is structurally blind to the case that matters. There is no escape hatch: locale suppression keys are silently dropped.
+
+Measured against our own rule set — 8 real errors, 14 traps:
+
+| Approach | Caught | Notes |
+|---|---|---|
+| `Intl.Segmenter` | 2/8 | never breaks before lowercase |
+| `sbd` (2.4 KB, MIT) | 8/8 | 3 false positives |
+| `compromise/one` (34.6 KB, MIT) | 8/8 | 1 false positive |
+| **Guarded matcher (ours)** | **7/8** | **0 false positives** |
+
+A narrow matcher wins on precision because it can encode "only fire where it matters". `sbd` remains a legitimate fallback if maintaining the abbreviation list becomes a burden.
+
+**Licence note:** LanguageTool's segmentation rules (SRX) are LGPL-2.1 and CoreNLP is GPL-3.0 — borrow the design, never the file. pySBD's 227-entry abbreviation list is MIT and safe to use.
+
+### 5.6 Testing strategy
+
+Split at the layout seam, because that is where the tooling genuinely changes.
+
+| Layer | Tool | Covers |
+|---|---|---|
+| Pure logic | Vitest (node env) | tokenizer, skip rules, check rules, offset maths — the bulk |
+| Rect → overlay transform | Vitest with hand-written `DOMRect` fixtures | positioning maths, no browser needed |
+| Layout and interaction | Playwright, real Chromium | that rects are obtained at all, clicks land, fixes apply |
+| Site behaviour | Playwright against locally-served snapshot fixtures | per-site DOM quirks |
+| Real Gmail / Outlook | **Manual QA only** | no automation exists for this |
+
+Non-obvious findings that shape the above:
+
+- **jsdom has no layout engine.** `getClientRects()` returns nothing on elements and *throws* on `Range`. Worse, `contentEditable` and `isContentEditable` are undefined there, so any branch on them misbehaves. Editability must be detected through an injectable predicate that tests can stub.
+- **Extracting the rect → overlay-coordinate transform as a pure function is the highest-leverage refactor available.** Without it, testing overlay positioning means mocking `getClientRects` and then asserting on your own mock, which proves nothing.
+- **Playwright's default headless mode cannot load extensions.** The default `chromium-headless-shell` has no extension support; extension tests need full Chromium, and Harper runs headed under a virtual display in CI for exactly this reason.
+- **Playwright cannot click the toolbar icon** or test a real anchored popup — both are upstream browser limitations. Navigate directly to `chrome-extension://<id>/popup.html` instead.
+- **Nobody tests against live Gmail in CI.** Harper commits local snapshot fixtures and serves them over localhost; for Google Docs it went further and *reimplemented the mechanism* in ~40 lines of synthetic DOM rather than snapshotting. Refined GitHub built live-selector regression tests properly and then disabled them, because the site served different HTML to CI runners. Grammarly ships a public known-issues page instead.
+- **Any committed snapshot of a logged-in page must be censored.** InboxSDK treats this as mandatory. Prefer non-authenticated pages as fixtures.
 
 ---
 
@@ -165,16 +221,37 @@ Recorded with reasoning so the work isn't re-derived later.
 
 ## 8. Open
 
-- Design sections still to be agreed: data flow, rule engine structure, failure modes, testing strategy
 - Personal dictionary storage: synced across browsers vs local-only (privacy trade)
+- Whether to expand the abbreviation list to pySBD's full 227 entries, or keep the current curated set and add entries as real misfires appear
+- Whether to classify abbreviations by following context (normally-lowercase / titles / numbers-only / always-internal), a design CoreNLP and pragmatic_segmenter arrived at independently
 
 ---
 
 ## Sources
 
-- [Hanov — succinct tries](https://stevehanov.ca/blog/?id=120)
+**Dictionary and suggestions**
+- [Hanov — succinct tries](https://stevehanov.ca/blog/?id=120) — 80k words, 611 KB → 216 KB
 - [SymSpell](https://github.com/wolfgarbe/SymSpell)
-- [Typo.js](https://github.com/cfinke/Typo.js/)
+- [Typo.js](https://github.com/cfinke/Typo.js/) — built for Chrome extensions, loads in the background page
 - [nspell](https://github.com/wooorm/nspell)
-- [Grammarly privacy FAQ](https://support.grammarly.com/hc/en-us/articles/20916119474829-Privacy-and-security-FAQs)
+
+**Shipping precedent**
+- [Harper](https://github.com/Automattic/harper) — the closest existing analogue; source of D16, D19 and the fixture strategy
+- [Grammarly privacy FAQ](https://support.grammarly.com/hc/en-us/articles/20916119474829-Privacy-and-security-FAQs) — cloud processing, the model we are not following
+- [Grammarly known issues](https://support.grammarly.com/hc/en-us/articles/360041953832-Known-issues-on-websites) — what shipping without site automation looks like
 - [LanguageTool local setup](https://docs.zettlr.com/en/guides/languagetool-local/)
+- [InboxSDK](https://github.com/InboxSDK/InboxSDK) — Gmail ships rolling per-user DOM versions; censor any captured HTML
+
+**Segmentation**
+- [UAX #29](https://unicode.org/reports/tr29/) — rule SB8, and its own admission that it cannot handle "Mr. Jones"
+- [pySBD](https://github.com/nipunsadvilkar/pySBD) — MIT, 227 abbreviations
+- [sbd](https://www.npmjs.com/package/sbd) — MIT, 2.4 KB gzip, the fallback if the matcher becomes a burden
+
+**Extension platform and testing**
+- [Chrome — end-to-end testing extensions](https://developer.chrome.com/docs/extensions/how-to/test/end-to-end-testing)
+- [Chrome — headless shell](https://developer.chrome.com/blog/chrome-headless-shell) — why default headless cannot load extensions
+- [Puppeteer — Chrome extensions](https://pptr.dev/guides/chrome-extensions) — first-class `enableExtensions` API
+- [Playwright — browsers](https://playwright.dev/docs/browsers)
+- [jsdom — unimplemented parts of the web platform](https://github.com/jsdom/jsdom#unimplemented-parts-of-the-web-platform) — no layout engine
+- [Vitest 4 announcement](https://voidzero.dev/posts/announcing-vitest-4) — Browser Mode stable
+- [eyeo — testing MV3 service worker suspension](https://developer.chrome.com/blog/eyeos-journey-to-testing-mv3-service%20worker-suspension)
