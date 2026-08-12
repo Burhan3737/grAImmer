@@ -183,9 +183,15 @@ body {
 
 textarea.field { background: transparent; }
 
-/* The mirror sits under the textarea and carries the underlines. Its text
-   is transparent, but text-decoration-color is independent of color, so the
-   squiggle renders and the real text shows through from the layer above. */
+/* The mirror carries the underlines. Its text is transparent, but
+   text-decoration-color is independent of color, so the squiggle renders
+   while the real textarea text shows through.
+
+   It sits ABOVE the textarea, not below. Below looks identical but the
+   textarea then swallows every click and no squiggle is ever clickable —
+   a bug that only shows up in a real browser, which is why the Playwright
+   check exists. pointer-events:none passes clicks through to the textarea
+   everywhere except the marks themselves. */
 .mirror {
   position: absolute;
   inset: 0;
@@ -193,7 +199,7 @@ textarea.field { background: transparent; }
   color: transparent;
   pointer-events: none;
   overflow: hidden;
-  z-index: 0;
+  z-index: 3;
 }
 .mirror mark {
   background: none;
@@ -385,7 +391,7 @@ td.rule { font-family: var(--mono); font-size: 11.5px; }
             <label><input type="checkbox" id="opt-urls" checked> skip URLs</label>
             <label>debounce <input type="range" id="opt-debounce" min="0" max="1000" step="50" value="500"> <span class="chip" id="chip-debounce">500 ms</span></label>
           </div>
-          <p class="hint" style="margin:12px 0 0">Turn off &ldquo;skip proper nouns&rdquo; and watch every name light up &mdash; that is the noise the skip rules exist to remove.</p>
+          <p class="hint" style="margin:12px 0 0">Toggling a skip rule changes which tokens reach the checker &mdash; watch the pipeline panel, not the issue count. <strong>&ldquo;Skip proper nouns&rdquo; has no visible effect yet:</strong> its only job is to stop names being flagged as misspellings, and spelling arrives in the next slice. The other three change results immediately.</p>
         </div>
       </section>
     </div>
