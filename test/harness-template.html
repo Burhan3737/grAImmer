@@ -1,0 +1,809 @@
+<title>grAImmer — engine test bench</title>
+
+<style>
+/* ------------------------------------------------------------------ *
+ * Tokens. Light is the bare :root so the un-stamped "system" state
+ * always resolves; dark redefines tokens only, never components.
+ * ------------------------------------------------------------------ */
+:root {
+  --ground:  #f4f6f4;
+  --surface: #ffffff;
+  --sunken:  #eceeec;
+  --ink:     #171a1c;
+  --muted:   #626a70;
+  --faint:   #8d959a;
+  --line:    #dde2df;
+
+  --spell:   #c4302b;
+  --grammar: #2a5fb8;
+  --skip:    #97770f;
+  --pass:    #17714c;
+  --fail:    #c4302b;
+
+  --spell-wash:   #fbeceb;
+  --grammar-wash: #eaf0fa;
+  --skip-wash:    #faf3e2;
+  --pass-wash:    #e7f4ee;
+
+  --sans: ui-sans-serif, system-ui, "Segoe UI Variable Text", "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  --prose: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+
+  --radius: 7px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:  #131618;
+    --surface: #1a1e21;
+    --sunken:  #222729;
+    --ink:     #e7eaea;
+    --muted:   #9aa3a8;
+    --faint:   #6d767b;
+    --line:    #2c3236;
+
+    --spell:   #f0736c;
+    --grammar: #7aa8f0;
+    --skip:    #d9ab3f;
+    --pass:    #55c093;
+    --fail:    #f0736c;
+
+    --spell-wash:   #2e1c1c;
+    --grammar-wash: #182437;
+    --skip-wash:    #2c2515;
+    --pass-wash:    #142b23;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground:  #131618;
+  --surface: #1a1e21;
+  --sunken:  #222729;
+  --ink:     #e7eaea;
+  --muted:   #9aa3a8;
+  --faint:   #6d767b;
+  --line:    #2c3236;
+
+  --spell:   #f0736c;
+  --grammar: #7aa8f0;
+  --skip:    #d9ab3f;
+  --pass:    #55c093;
+  --fail:    #f0736c;
+
+  --spell-wash:   #2e1c1c;
+  --grammar-wash: #182437;
+  --skip-wash:    #2c2515;
+  --pass-wash:    #142b23;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1400px; margin: 0 auto; padding: 28px 24px 80px; }
+
+/* ---------------------------------------------------------- header */
+.masthead {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 24px;
+}
+.masthead h1 {
+  font-size: 22px;
+  font-weight: 620;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+.masthead h1 .ai { color: var(--spell); }
+.masthead p { margin: 0; color: var(--muted); font-size: 13.5px; }
+.spacer { flex: 1 1 auto; }
+
+.chip {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 3px 9px;
+  border-radius: 100px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.chip.good { color: var(--pass); background: var(--pass-wash); border-color: transparent; }
+.chip.bad  { color: var(--fail); background: var(--spell-wash); border-color: transparent; }
+
+/* ---------------------------------------------------------- layout */
+.columns { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; }
+@media (max-width: 1040px) { .columns { grid-template-columns: minmax(0, 1fr); } }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.panel + .panel { margin-top: 20px; }
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--sunken);
+}
+.panel-head h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 640;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.panel-body { padding: 14px; }
+
+.hint { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
+
+/* ---------------------------------------------------------- fields */
+.field-shell { position: relative; }
+
+.field, .mirror {
+  font-family: var(--prose);
+  font-size: 16px;
+  line-height: 1.85;
+  padding: 13px 14px;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  letter-spacing: 0;
+}
+
+.field {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 172px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  resize: vertical;
+  z-index: 1;
+}
+.field:focus { outline: 2px solid var(--grammar); outline-offset: -1px; }
+
+textarea.field { background: transparent; }
+
+/* The mirror sits under the textarea and carries the underlines. Its text
+   is transparent, but text-decoration-color is independent of color, so the
+   squiggle renders and the real text shows through from the layer above. */
+.mirror {
+  position: absolute;
+  inset: 0;
+  border: 1px solid transparent;
+  color: transparent;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+.mirror mark {
+  background: none;
+  color: transparent;
+  text-decoration: underline wavy var(--grammar);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.mirror mark[data-severity="mechanics"] { text-decoration-color: var(--grammar); }
+.mirror mark[data-severity="grammar"]   { text-decoration-color: var(--grammar); }
+.mirror mark[data-severity="spelling"]  { text-decoration-color: var(--spell); }
+
+/* Contenteditable uses measured rectangles instead of a mirror, because its
+   text lives in DOM nodes we must not touch. */
+.rects { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.rect {
+  position: absolute;
+  border-bottom: 2px solid var(--grammar);
+  pointer-events: auto;
+  cursor: pointer;
+}
+.rect[data-severity="spelling"] { border-bottom-color: var(--spell); }
+.rect:hover { background: var(--grammar-wash); }
+
+/* ------------------------------------------------------------ card */
+.card {
+  position: absolute;
+  z-index: 40;
+  width: 268px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+  overflow: hidden;
+  font-family: var(--sans);
+}
+.card-head {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 640;
+}
+.card-msg { padding: 9px 12px; font-size: 12.5px; color: var(--muted); }
+.card-fix {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 560;
+  color: var(--ink);
+  cursor: pointer;
+}
+.card-fix:hover, .card-fix:focus-visible { background: var(--grammar-wash); outline: none; }
+.card-foot {
+  display: flex;
+  gap: 14px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.card-foot button {
+  border: 0; background: none; padding: 0; font: inherit;
+  color: var(--muted); cursor: pointer; text-decoration: underline;
+}
+
+/* ------------------------------------------------------- inspector */
+.toks { display: flex; flex-wrap: wrap; gap: 4px; }
+.tok {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--sunken);
+  border: 1px solid transparent;
+}
+.tok.kept    { border-color: var(--line); background: var(--surface); }
+.tok.dropped { color: var(--faint); background: var(--skip-wash); text-decoration: line-through; }
+
+.legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); margin-top: 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+table.issues { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.issues th {
+  text-align: left; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted); font-weight: 620; padding: 5px 8px; border-bottom: 1px solid var(--line);
+}
+table.issues td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.issues tr:last-child td { border-bottom: 0; }
+td.off { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--faint); white-space: nowrap; }
+td.rule { font-family: var(--mono); font-size: 11.5px; }
+.sev { display: inline-block; width: 3px; height: 13px; border-radius: 2px; vertical-align: -2px; margin-right: 7px; }
+
+.empty { color: var(--faint); font-size: 13px; font-style: italic; padding: 6px 0; }
+
+/* ----------------------------------------------------------- tests */
+.suite-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; background: var(--sunken);
+  font-size: 11.5px; font-weight: 620; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+.case { display: flex; gap: 9px; padding: 6px 12px; border-top: 1px solid var(--line); font-size: 12.5px; align-items: baseline; }
+.case:first-of-type { border-top: 0; }
+.case .mark { font-family: var(--mono); font-size: 10.5px; font-weight: 700; flex: 0 0 auto; }
+.case.ok   .mark { color: var(--pass); }
+.case.bad  .mark { color: var(--fail); }
+.case.bad { background: var(--spell-wash); }
+.case .id { font-family: var(--mono); font-size: 11px; color: var(--faint); flex: 0 0 auto; }
+.case .desc { color: var(--ink); }
+.case .why { display: block; color: var(--fail); font-family: var(--mono); font-size: 11px; margin-top: 3px; }
+
+.controls { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; font-size: 12.5px; color: var(--muted); }
+.controls label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.controls input[type="range"] { width: 120px; }
+
+.covers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12.5px; }
+@media (max-width: 620px) { .covers { grid-template-columns: 1fr; } }
+.covers ul { margin: 6px 0 0; padding-left: 17px; color: var(--muted); }
+.covers li { margin-bottom: 3px; }
+.covers h3 { margin: 0; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; }
+.covers .yes h3 { color: var(--pass); }
+.covers .no h3 { color: var(--skip); }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <h1>gr<span class="ai">AI</span>mmer</h1>
+    <p>engine test bench &middot; Phase 1 slice</p>
+    <span class="spacer"></span>
+    <span class="chip" id="chip-rules">—</span>
+    <span class="chip" id="chip-tests">—</span>
+  </header>
+
+  <div class="columns">
+
+    <!-- ============================= left: live fields ============ -->
+    <div>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Plain field &mdash; textarea</h2>
+          <span class="spacer"></span>
+          <span class="chip" id="chip-ta">0 issues</span>
+        </div>
+        <div class="panel-body">
+          <p class="hint">The easy case: text is one flat string. Underlines are drawn on a mirror layer beneath the field. Type freely, then click any squiggle.</p>
+          <div class="field-shell">
+            <div class="mirror" id="mirror-ta"></div>
+            <textarea class="field" id="ta" spellcheck="false"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Rich editor &mdash; contenteditable</h2>
+          <span class="spacer"></span>
+          <span class="chip" id="chip-ce">0 issues</span>
+        </div>
+        <div class="panel-body">
+          <p class="hint">The hard case, and what Gmail and Outlook actually are. Text is scattered across DOM nodes, so underlines are measured rectangles positioned over the live text. <strong>Nothing is written into the field.</strong> Try adding bold mid-word.</p>
+          <div class="field-shell">
+            <div class="field" id="ce" contenteditable="true" spellcheck="false"></div>
+            <div class="rects" id="rects-ce"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>Controls</h2></div>
+        <div class="panel-body">
+          <div class="controls">
+            <label><input type="checkbox" id="opt-propernouns" checked> skip proper nouns</label>
+            <label><input type="checkbox" id="opt-quoted" checked> skip quoted history</label>
+            <label><input type="checkbox" id="opt-signature" checked> skip signature</label>
+            <label><input type="checkbox" id="opt-urls" checked> skip URLs</label>
+            <label>debounce <input type="range" id="opt-debounce" min="0" max="1000" step="50" value="500"> <span class="chip" id="chip-debounce">500 ms</span></label>
+          </div>
+          <p class="hint" style="margin:12px 0 0">Turn off &ldquo;skip proper nouns&rdquo; and watch every name light up &mdash; that is the noise the skip rules exist to remove.</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============================= right: inspector + tests ===== -->
+    <div>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Pipeline &mdash; focused field</h2>
+          <span class="spacer"></span>
+          <span class="chip" id="chip-which">textarea</span>
+        </div>
+        <div class="panel-body">
+          <div class="toks" id="toks"></div>
+          <div class="legend">
+            <span><i class="swatch" style="background:var(--surface);border:1px solid var(--line)"></i> checked</span>
+            <span><i class="swatch" style="background:var(--skip-wash);border:1px solid var(--skip)"></i> dropped by a skip rule</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>Issues found</h2></div>
+        <div class="panel-body" style="padding:0">
+          <div id="issues"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Test suite</h2>
+          <span class="spacer"></span>
+          <span class="chip" id="chip-suite">—</span>
+        </div>
+        <div id="suite"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>What this bench proves</h2></div>
+        <div class="panel-body">
+          <div class="covers">
+            <div class="yes">
+              <h3>Covered here</h3>
+              <ul>
+                <li>Tokenizer offsets and sentence splitting</li>
+                <li>All six skip rules</li>
+                <li>Check rules 2&ndash;6 and their false-positive guards</li>
+                <li>Underlines on both field types</li>
+                <li>Suggestion card and applying a fix</li>
+              </ul>
+            </div>
+            <div class="no">
+              <h3>Not covered &mdash; needs real Chrome</h3>
+              <ul>
+                <li>Spelling &mdash; the dictionary is not in this slice</li>
+                <li>Extension manifest and permissions</li>
+                <li>Service worker lifecycle and the keep-alive port</li>
+                <li>Gmail and Outlook DOM behaviour</li>
+                <li>Caret restoration inside a real editor</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/*__ENGINE__*/
+
+/* ==================================================================== *
+ * Harness wiring. Everything above this line is the real engine,
+ * inlined verbatim from src/core by test/build-harness.js.
+ * ==================================================================== */
+
+const SAMPLE = `hi Sarah,
+
+i dont think there is 3 items to review. your welcome to check the the logs at grafana.acme.io/d/x8f2 on monday. He have already replied ,so we should be fine.
+
+Ticket INFRA-4471 covers it .Thanks
+
+--
+Imran Qureshi
+acme corp`;
+
+const ta = document.getElementById('ta');
+const ce = document.getElementById('ce');
+const mirror = document.getElementById('mirror-ta');
+const rects = document.getElementById('rects-ce');
+
+ta.value = SAMPLE;
+ce.innerHTML = SAMPLE.split('\n')
+  .map((line) => `<div>${line ? escapeHtml(line) : '<br>'}</div>`)
+  .join('');
+
+let debounceMs = 500;
+let timer = null;
+let focused = 'ta';
+let card = null;
+
+function escapeHtml(s) {
+  return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+
+function settings() {
+  return {
+    skip: {
+      propernouns: document.getElementById('opt-propernouns').checked,
+      quoted: document.getElementById('opt-quoted').checked,
+      signature: document.getElementById('opt-signature').checked,
+      urls: document.getElementById('opt-urls').checked,
+    },
+  };
+}
+
+/* ---------------------------------------------- contenteditable text */
+
+/**
+ * Flatten a contenteditable into plain text plus a map back to text nodes.
+ * Block elements contribute an implicit newline — without that, the last
+ * word of one line and the first of the next fuse into a single token.
+ */
+function extractRich(root) {
+  const entries = [];
+  let text = '';
+  let lastBlock = null;
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  let node;
+  while ((node = walker.nextNode())) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      if (node.tagName === 'BR' && text.length && !text.endsWith('\n')) text += '\n';
+      continue;
+    }
+    const block = node.parentElement.closest('div,p,li,blockquote') || root;
+    if (lastBlock && block !== lastBlock && text.length && !text.endsWith('\n')) text += '\n';
+    lastBlock = block;
+    entries.push({ node, start: text.length, end: text.length + node.nodeValue.length });
+    text += node.nodeValue;
+  }
+  return { text, entries };
+}
+
+/** Turn a plain-text offset range into a live DOM Range. */
+function offsetsToRange(entries, start, end) {
+  const from = entries.find((e) => start >= e.start && start < e.end);
+  const to = entries.find((e) => end > e.start && end <= e.end);
+  if (!from || !to) return null;
+  const range = document.createRange();
+  range.setStart(from.node, start - from.start);
+  range.setEnd(to.node, end - to.start);
+  return range;
+}
+
+/* ------------------------------------------------------- rendering */
+
+function renderTextarea(text, issues) {
+  const style = getComputedStyle(ta);
+  for (const prop of ['fontFamily', 'fontSize', 'lineHeight', 'letterSpacing', 'padding', 'borderWidth']) {
+    mirror.style[prop] = style[prop];
+  }
+  mirror.style.width = ta.offsetWidth + 'px';
+  mirror.style.height = ta.offsetHeight + 'px';
+
+  let html = '';
+  let cursor = 0;
+  for (const issue of issues) {
+    html += escapeHtml(text.slice(cursor, issue.start));
+    html += `<mark data-severity="${issue.severity}" data-i="${issues.indexOf(issue)}">` +
+      escapeHtml(text.slice(issue.start, issue.end)) + '</mark>';
+    cursor = issue.end;
+  }
+  html += escapeHtml(text.slice(cursor));
+  mirror.innerHTML = html;
+  mirror.scrollTop = ta.scrollTop;
+}
+
+function renderRich(entries, issues) {
+  rects.innerHTML = '';
+  const base = ce.getBoundingClientRect();
+
+  issues.forEach((issue, index) => {
+    const range = offsetsToRange(entries, issue.start, issue.end);
+    if (!range) return;
+    // One issue can wrap across lines, so each client rect gets its own bar.
+    for (const r of range.getClientRects()) {
+      if (r.width === 0) continue;
+      const bar = document.createElement('div');
+      bar.className = 'rect';
+      bar.dataset.severity = issue.severity;
+      bar.dataset.i = index;
+      bar.style.left = (r.left - base.left) + 'px';
+      bar.style.top = (r.top - base.top) + 'px';
+      bar.style.width = r.width + 'px';
+      bar.style.height = r.height + 'px';
+      rects.appendChild(bar);
+    }
+  });
+}
+
+function renderInspector(trace, which) {
+  document.getElementById('chip-which').textContent = which;
+  const host = document.getElementById('toks');
+  host.innerHTML = '';
+  trace.tokens.forEach((token, index) => {
+    const reason = trace.skipped.get(index);
+    if (reason === 'nonword') return;
+    const el = document.createElement('span');
+    el.className = 'tok ' + (reason ? 'dropped' : 'kept');
+    el.textContent = token.text;
+    if (reason) el.title = 'dropped by: ' + reason;
+    host.appendChild(el);
+  });
+}
+
+function renderIssues(issues) {
+  const host = document.getElementById('issues');
+  if (!issues.length) {
+    host.innerHTML = '<div class="panel-body"><p class="empty">No issues. Type a mistake to see one.</p></div>';
+    return;
+  }
+  const rows = issues.map((issue) => {
+    const colour = issue.severity === 'spelling' ? 'var(--spell)' : 'var(--grammar)';
+    return `<tr>
+      <td class="off">${issue.start}&ndash;${issue.end}</td>
+      <td><span class="sev" style="background:${colour}"></span>${escapeHtml(issue.original)}</td>
+      <td class="rule">${issue.ruleId}</td>
+      <td><strong>${escapeHtml(issue.suggestions[0] || '')}</strong></td>
+    </tr>`;
+  }).join('');
+  host.innerHTML = `<table class="issues">
+    <tr><th>offset</th><th>text</th><th>rule</th><th>suggestion</th></tr>${rows}</table>`;
+}
+
+/* ----------------------------------------------------------- card */
+
+function closeCard() {
+  if (card) { card.remove(); card = null; }
+}
+
+function openCard(issue, target, apply) {
+  closeCard();
+  const colour = issue.severity === 'spelling' ? 'var(--spell)' : 'var(--grammar)';
+  card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML =
+    `<div class="card-head" style="color:${colour}">${escapeHtml(issue.category)}</div>` +
+    `<div class="card-msg">${escapeHtml(issue.message)}</div>` +
+    issue.suggestions.map((s, i) =>
+      `<button class="card-fix" data-s="${i}">${escapeHtml(s)}</button>`).join('') +
+    `<div class="card-foot"><button data-act="ignore">Ignore</button>` +
+    `<button data-act="add">Add to dictionary</button></div>`;
+
+  const shell = target.closest('.field-shell');
+  shell.appendChild(card);
+  const box = target.getBoundingClientRect();
+  const base = shell.getBoundingClientRect();
+  card.style.left = Math.min(box.left - base.left, shell.clientWidth - 278) + 'px';
+  card.style.top = (box.bottom - base.top + 6) + 'px';
+
+  card.querySelectorAll('.card-fix').forEach((button) => {
+    button.addEventListener('click', () => {
+      apply(issue, issue.suggestions[Number(button.dataset.s)]);
+      closeCard();
+    });
+  });
+  card.querySelector('[data-act="ignore"]').addEventListener('click', closeCard);
+  card.querySelector('[data-act="add"]').addEventListener('click', closeCard);
+}
+
+/* ----------------------------------------------------------- apply */
+
+function applyToTextarea(issue, replacement) {
+  const before = ta.value.slice(0, issue.start);
+  const after = ta.value.slice(issue.end);
+  ta.value = before + replacement + after;
+  const caret = issue.start + replacement.length;
+  ta.setSelectionRange(caret, caret);
+  ta.focus();
+  // Real sites listen for this. Skip it and Gmail never saves the draft.
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
+  run();
+}
+
+function applyToRich(issue, replacement) {
+  const { entries, text } = extractRich(ce);
+  // Guard against a stale suggestion: if the text moved while the card was
+  // open, the range no longer holds what the fix was generated for.
+  if (text.slice(issue.start, issue.end) !== issue.original) { run(); return; }
+  const range = offsetsToRange(entries, issue.start, issue.end);
+  if (!range) { run(); return; }
+  range.deleteContents();
+  range.insertNode(document.createTextNode(replacement));
+  ce.normalize();
+  ce.dispatchEvent(new Event('input', { bubbles: true }));
+  run();
+}
+
+/* ------------------------------------------------------------- run */
+
+let lastTextareaIssues = [];
+let lastRichIssues = [];
+let lastRichEntries = [];
+
+function run() {
+  const opts = settings();
+
+  const taResult = check(ta.value, opts);
+  lastTextareaIssues = taResult.issues;
+  renderTextarea(ta.value, taResult.issues);
+  document.getElementById('chip-ta').textContent =
+    taResult.issues.length + (taResult.issues.length === 1 ? ' issue' : ' issues');
+
+  const rich = extractRich(ce);
+  lastRichEntries = rich.entries;
+  const ceResult = check(rich.text, opts);
+  lastRichIssues = ceResult.issues;
+  renderRich(rich.entries, ceResult.issues);
+  document.getElementById('chip-ce').textContent =
+    ceResult.issues.length + (ceResult.issues.length === 1 ? ' issue' : ' issues');
+
+  const active = focused === 'ce' ? ceResult : taResult;
+  renderInspector(active.trace, focused === 'ce' ? 'contenteditable' : 'textarea');
+  renderIssues(active.issues);
+}
+
+function schedule() {
+  closeCard();
+  clearTimeout(timer);
+  timer = setTimeout(run, debounceMs);
+}
+
+/* --------------------------------------------------------- events */
+
+ta.addEventListener('input', schedule);
+ce.addEventListener('input', schedule);
+ta.addEventListener('focus', () => { focused = 'ta'; run(); });
+ce.addEventListener('focus', () => { focused = 'ce'; run(); });
+ta.addEventListener('scroll', () => { mirror.scrollTop = ta.scrollTop; });
+
+mirror.addEventListener('click', (event) => {
+  const hit = event.target.closest('mark');
+  if (!hit) return;
+  openCard(lastTextareaIssues[Number(hit.dataset.i)], hit, applyToTextarea);
+});
+
+rects.addEventListener('click', (event) => {
+  const hit = event.target.closest('.rect');
+  if (!hit) return;
+  openCard(lastRichIssues[Number(hit.dataset.i)], hit, applyToRich);
+});
+
+document.addEventListener('click', (event) => {
+  if (card && !card.contains(event.target) &&
+      !event.target.closest('mark') && !event.target.closest('.rect')) closeCard();
+});
+
+for (const id of ['opt-propernouns', 'opt-quoted', 'opt-signature', 'opt-urls']) {
+  document.getElementById(id).addEventListener('change', run);
+}
+
+const debounceInput = document.getElementById('opt-debounce');
+debounceInput.addEventListener('input', () => {
+  debounceMs = Number(debounceInput.value);
+  document.getElementById('chip-debounce').textContent = debounceMs + ' ms';
+});
+
+// Re-measure on resize and scroll — the paint loop from the design.
+let raf = null;
+function repaint() {
+  if (raf) return;
+  raf = requestAnimationFrame(() => {
+    raf = null;
+    renderRich(lastRichEntries, lastRichIssues);
+    renderTextarea(ta.value, lastTextareaIssues);
+  });
+}
+window.addEventListener('resize', repaint);
+window.addEventListener('scroll', repaint, true);
+new ResizeObserver(repaint).observe(ce);
+new ResizeObserver(repaint).observe(ta);
+
+/* ----------------------------------------------------------- tests */
+
+function renderSuite() {
+  const results = runCases((text) => check(text));
+  const host = document.getElementById('suite');
+  const passed = results.filter((r) => r.pass).length;
+
+  const chip = document.getElementById('chip-suite');
+  chip.textContent = `${passed}/${results.length}`;
+  chip.className = 'chip ' + (passed === results.length ? 'good' : 'bad');
+
+  const top = document.getElementById('chip-tests');
+  top.textContent = `${passed}/${results.length} tests`;
+  top.className = 'chip ' + (passed === results.length ? 'good' : 'bad');
+
+  const groups = [...new Set(results.map((r) => r.group))];
+  host.innerHTML = groups.map((group) => {
+    const inGroup = results.filter((r) => r.group === group);
+    const ok = inGroup.filter((r) => r.pass).length;
+    const cases = inGroup.map((r) => `
+      <div class="case ${r.pass ? 'ok' : 'bad'}">
+        <span class="mark">${r.pass ? 'PASS' : 'FAIL'}</span>
+        <span class="id">${r.id}</span>
+        <span class="desc">${escapeHtml(r.describe)}${
+          r.pass ? '' : `<span class="why">${escapeHtml(r.reason)}</span>`}</span>
+      </div>`).join('');
+    return `<div class="suite-head">${group} &nbsp;<span style="color:${
+      ok === inGroup.length ? 'var(--pass)' : 'var(--fail)'}">${ok}/${inGroup.length}</span></div>${cases}`;
+  }).join('');
+}
+
+document.getElementById('chip-rules').textContent =
+  SKIP_RULES.length + ' skip rules · 5 check categories';
+
+renderSuite();
+run();
+</script>
