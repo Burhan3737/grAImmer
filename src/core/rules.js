@@ -34,6 +34,60 @@ function matchCase(original, replacement) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Category 1 — spelling
+ * ------------------------------------------------------------------ */
+
+/**
+ * Words that survived the skip rules and need the dictionary's opinion.
+ *
+ * The core stays synchronous and pure: it names the candidates, and the
+ * caller resolves them however it likes — via the background worker in the
+ * extension, or a stub in tests. That boundary is what keeps the rule engine
+ * testable without a dictionary present at all.
+ *
+ * @returns {string[]} unique, in first-appearance order
+ */
+export function collectSpellingCandidates(tokens, skipped) {
+  const seen = new Set();
+  const candidates = [];
+
+  tokens.forEach((token, index) => {
+    if (skipped.has(index) || token.type !== 'word') return;
+    // Contractions are handled by the apostrophe rules; the dictionary sees
+    // the base word so "don't" is not reported as an unknown word.
+    const word = token.text.replace(/[’']s$/i, '');
+    if (word.length < 2) return;
+    if (seen.has(word)) return;
+    seen.add(word);
+    candidates.push(word);
+  });
+
+  return candidates;
+}
+
+/**
+ * @param {Record<string, {ok:boolean, suggestions:string[]}>} verdicts
+ */
+export function checkSpelling(text, tokens, skipped, verdicts) {
+  const issues = [];
+
+  tokens.forEach((token, index) => {
+    if (skipped.has(index) || token.type !== 'word') return;
+    const word = token.text.replace(/[’']s$/i, '');
+    const verdict = verdicts[word];
+    if (!verdict || verdict.ok) return;
+
+    issues.push(
+      issue(token.start, token.end, text, 'spelling', 'Spelling', 'spelling',
+        `"${token.text}" is not in the dictionary.`,
+        verdict.suggestions)
+    );
+  });
+
+  return issues;
+}
+
+/* ------------------------------------------------------------------ *
  * Category 3 — missing apostrophes
  * ------------------------------------------------------------------ */
 

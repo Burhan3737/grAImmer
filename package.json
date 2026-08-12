@@ -5,10 +5,15 @@
   "type": "module",
   "description": "Rule-based spelling and grammar checker for the browser. No AI, no network.",
   "scripts": {
+    "build": "node build/extension.js",
+    "harness": "node test/build-harness.js",
     "test": "node test/run.js",
-    "harness": "node test/build-harness.js"
+    "test:harness": "npm run harness && node test/verify-harness.mjs",
+    "test:e2e": "npm run build && node test/e2e-extension.mjs",
+    "test:all": "npm test && npm run test:harness && npm run test:e2e"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "playwright": "^1.62.1"
   },
   "dependencies": {

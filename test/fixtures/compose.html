@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Compose fixture</title>
+<style>
+  body { font: 16px/1.8 Georgia, serif; margin: 40px; max-width: 640px; }
+  h2 { font: 600 12px/1 system-ui, sans-serif; letter-spacing: .08em;
+       text-transform: uppercase; color: #666; margin: 28px 0 8px; }
+  textarea, .rich {
+    width: 100%; min-height: 140px; padding: 12px;
+    border: 1px solid #ccc; border-radius: 6px;
+    font: inherit; box-sizing: border-box;
+  }
+  .scroller { max-height: 90px; overflow: auto; }
+</style>
+</head>
+<body>
+
+<!--
+  A synthetic fixture rather than a captured page.
+
+  Harper reached the same conclusion for Google Docs and reimplemented the
+  mechanism instead of snapshotting it: a generated fixture has no PII, no
+  copyright question, and cannot go stale when the real site redeploys. Real
+  Gmail and Outlook are verified by hand, not in CI.
+
+  Each field below reproduces one structural property of a real editor rather
+  than its markup.
+-->
+
+<h2>Plain textarea — the GitHub case</h2>
+<textarea id="plain" spellcheck="false">i dont think there is 3 items to review.</textarea>
+
+<h2>Contenteditable — the Gmail case</h2>
+<div id="rich" class="rich" contenteditable="true" spellcheck="false"><div>i dont think there is 3 items to review.</div></div>
+
+<h2>Contenteditable with inline formatting split mid-phrase</h2>
+<!-- getClientRects() fragments a range at every element boundary, so this
+     underline must be merged back into one bar rather than drawn in pieces. -->
+<div id="split" class="rich" contenteditable="true" spellcheck="false"><div>your <b>wel</b>come to check it</div></div>
+
+<h2>Contenteditable that is its own scroll container — the Slack case</h2>
+<div id="scroller" class="rich scroller" contenteditable="true" spellcheck="false"><div>line one is fine here</div><div>line two is fine here</div><div>line three is fine ok</div><div>i dont think so</div></div>
+
+<h2>Field carrying data-gramm="false" — what Quill sets on Slack</h2>
+<div id="gramm" class="rich" contenteditable="true" spellcheck="false" data-gramm="false"><div>i dont think there is 3 items</div></div>
+
+</body>
+</html>

@@ -20,9 +20,12 @@ import {
   checkAgreement,
   checkCapitalization,
   checkMechanics,
+  checkSpelling,
+  collectSpellingCandidates,
 } from './rules.js';
 
 export const DEFAULT_CHECK_SETTINGS = {
+  spelling: true,
   confusions: true,
   apostrophes: true,
   capitalization: true,
@@ -35,7 +38,14 @@ export const DEFAULT_CHECK_SETTINGS = {
  * which explanation is more useful: a confused-word issue tells you more
  * than a capitalization issue on the same span.
  */
-const PRIORITY = ['Confused words', 'Agreement', 'Missing apostrophe', 'Mechanics', 'Capitalization'];
+const PRIORITY = [
+  'Confused words',
+  'Agreement',
+  'Missing apostrophe',
+  'Spelling',
+  'Mechanics',
+  'Capitalization',
+];
 
 function dedupe(issues) {
   const sorted = [...issues].sort((a, b) => {
@@ -57,11 +67,15 @@ function dedupe(issues) {
 /**
  * @param {string} text
  * @param {object} [settings]
- * @returns {{issues: Issue[], trace: object}}
+ * @param {Record<string, {ok:boolean, suggestions:string[]}>} [verdicts]
+ *   Dictionary answers for words named by a previous call's `candidates`.
+ *   Omit it and spelling is simply absent — every other rule still runs, which
+ *   is what lets underlines appear before the worker has replied (spec §5.4).
+ * @returns {{issues: Issue[], candidates: string[], trace: object}}
  *   trace carries the intermediate stages so the harness can show what the
  *   pipeline did. Production callers ignore it; it costs nothing to build.
  */
-export function check(text, settings = {}) {
+export function check(text, settings = {}, verdicts = null) {
   const skipSettings = { ...DEFAULT_SKIP_SETTINGS, ...(settings.skip || {}) };
   const checkSettings = { ...DEFAULT_CHECK_SETTINGS, ...(settings.checks || {}) };
 
@@ -84,11 +98,17 @@ export function check(text, settings = {}) {
     issues.push(...checkCapitalization(text, tokens, sentences, skipped));
   }
   if (checkSettings.mechanics) issues.push(...checkMechanics(text, isSkippedForMechanics));
+  if (checkSettings.spelling && verdicts) {
+    issues.push(...checkSpelling(text, tokens, skipped, verdicts));
+  }
 
   issues = dedupe(issues);
 
+  const candidates = checkSettings.spelling ? collectSpellingCandidates(tokens, skipped) : [];
+
   return {
     issues,
+    candidates,
     trace: { tokens, sentences, skipped, regions },
   };
 }

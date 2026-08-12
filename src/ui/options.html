@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>grAImmer settings</title>
+<style>
+:root {
+  --ground: #f4f6f4; --surface: #fff; --sunken: #eceeec;
+  --ink: #171a1c; --muted: #626a70; --line: #dde2df;
+  --accent: #2a5fb8; --spell: #c4302b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #131618; --surface: #1a1e21; --sunken: #222729;
+    --ink: #e7eaea; --muted: #9aa3a8; --line: #2c3236;
+    --accent: #7aa8f0; --spell: #f0736c;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--ground); color: var(--ink);
+  font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px; line-height: 1.55;
+}
+.wrap { max-width: 720px; margin: 0 auto; padding: 32px 24px 80px; }
+h1 { font-size: 22px; font-weight: 620; letter-spacing: -.015em; margin: 0 0 4px; }
+h1 .ai { color: var(--spell); }
+.lede { color: var(--muted); font-size: 13.5px; margin: 0 0 26px; }
+section {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; margin-bottom: 18px; overflow: hidden;
+}
+h2 {
+  margin: 0; padding: 11px 16px; background: var(--sunken);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px; font-weight: 640; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--muted);
+}
+.body { padding: 14px 16px; }
+label.row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 0; cursor: pointer;
+}
+label.row + label.row { border-top: 1px solid var(--line); }
+label.row input { margin-top: 4px; flex: 0 0 auto; }
+.row .text strong { display: block; font-weight: 560; font-size: 14px; }
+.row .text span { display: block; color: var(--muted); font-size: 12.5px; }
+.words { display: flex; flex-wrap: wrap; gap: 6px; }
+.word {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 4px 6px 4px 11px; border-radius: 100px;
+  background: var(--sunken); font-size: 12.5px;
+}
+.word button {
+  border: 0; background: none; padding: 0 2px; cursor: pointer;
+  color: var(--muted); font-size: 14px; line-height: 1;
+}
+.word button:hover { color: var(--spell); }
+.empty { color: var(--muted); font-size: 13px; font-style: italic; }
+.add { display: flex; gap: 8px; margin-top: 14px; }
+.add input {
+  flex: 1; padding: 7px 10px; border: 1px solid var(--line);
+  border-radius: 6px; background: var(--ground); color: var(--ink); font: inherit;
+}
+.add button {
+  padding: 7px 15px; border: 1px solid var(--accent); border-radius: 6px;
+  background: var(--accent); color: #fff; font: inherit; font-weight: 560; cursor: pointer;
+}
+.note {
+  margin: 12px 0 0; padding: 10px 12px; border-radius: 6px;
+  background: var(--sunken); color: var(--muted); font-size: 12.5px;
+}
+.note code { font-family: ui-monospace, Consolas, monospace; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>gr<span class="ai">AI</span>mmer</h1>
+  <p class="lede">Rule-based checking, English only. Nothing you type leaves the browser &mdash; there is no server and no network request.</p>
+
+  <section>
+    <h2>What to check</h2>
+    <div class="body" id="checks"></div>
+  </section>
+
+  <section>
+    <h2>What to leave alone</h2>
+    <div class="body" id="skips"></div>
+  </section>
+
+  <section>
+    <h2>Personal dictionary</h2>
+    <div class="body">
+      <div class="words" id="words"></div>
+      <div class="add">
+        <input id="new-word" type="text" placeholder="Add a word" autocomplete="off">
+        <button id="add-word" type="button">Add</button>
+      </div>
+      <p class="note">Added words are treated as <strong>correct</strong>, not skipped. So <code>Grafana</code> stops being flagged, while <code>Graffana</code> is still caught and can be corrected to it.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Sites</h2>
+    <div class="body">
+      <label class="row">
+        <input type="checkbox" id="enabled">
+        <span class="text">
+          <strong>Enabled</strong>
+          <span>Turn grAImmer off everywhere without uninstalling it.</span>
+        </span>
+      </label>
+      <p class="note"><strong>Google Docs cannot be supported.</strong> It paints text to a canvas, so there are no text nodes for any extension to read. This is a limitation of Docs, not of grAImmer.</p>
+      <p class="note"><strong>Slack asks extensions not to run</strong> via a <code>data-gramm="false"</code> attribute that its editor sets automatically. grAImmer ignores it, because that flag exists to stop extensions writing into the editor and grAImmer never does &mdash; underlines are drawn on a separate layer. Turn grAImmer off above if you would rather it respected the request.</p>
+    </div>
+  </section>
+
+</div>
+<script src="options.js"></script>
+</body>
+</html>
