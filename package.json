@@ -1,0 +1,11 @@
+{
+  "name": "graimmer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Rule-based spelling and grammar checker for the browser. No AI, no network.",
+  "scripts": {
+    "test": "node test/run.js",
+    "harness": "node test/build-harness.js"
+  }
+}

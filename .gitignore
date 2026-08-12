@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+
+# Visual brainstorming companion scratch — session state, not source
+.superpowers/
+
+*.log
+.DS_Store
+Thumbs.db
