@@ -146,6 +146,24 @@ try {
   record('no underline is painted outside a scrolled field',
     strayMarks === 0, `${strayMarks} marks escaped the field bounds`);
 
+  /* -------------------- a code editor is left alone by default */
+  // Counted by overlap with the editor's own box rather than globally: the
+  // previously focused field keeps its underlines by design, so a global
+  // count would measure the wrong thing entirely.
+  await page.click('#code');
+  await page.waitForTimeout(1500);
+  const codeMarks = await page.evaluate(() => {
+    const box = document.getElementById('code').getBoundingClientRect();
+    return [...document.querySelectorAll('.graimmer-mark')]
+      .map((m) => m.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0)
+      .filter((r) => r.left < box.right && r.right > box.left &&
+                     r.top < box.bottom && r.bottom > box.top)
+      .length;
+  });
+  record('a code editor is not checked', codeMarks === 0,
+    `painted ${codeMarks} marks over a Monaco-style editor`);
+
   /* -------------------------- 11. the badge and panel (spec D2) work */
   await page.click('#plain');
   await page.fill('#plain', 'i dont think there is 3 items. your welcome to check the the logs.');
@@ -238,6 +256,49 @@ try {
   await options.waitForTimeout(600);
   const chips = await options.locator('.word').count();
   record('a word can be added to the personal dictionary', chips >= 1, `${chips} chips`);
+  await options.close();
+
+  /* ------------------------- 12. the popup and per-site disable work */
+  // Playwright cannot click a toolbar icon — that is an upstream browser
+  // limitation, not a gap here — so the popup is opened by URL, which
+  // exercises the same document and the same script.
+  const popup = await context.newPage();
+  const popupErrors = [];
+  popup.on('pageerror', (error) => popupErrors.push(String(error)));
+  await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+  await popup.waitForSelector('#site', { timeout: 8000 });
+  record('popup renders without errors', popupErrors.length === 0, popupErrors.join(' | '));
+
+  // Turning a site off must actually stop the checker there, not merely
+  // record a preference nothing reads.
+  await popup.evaluate((target) => new Promise((done) => {
+    chrome.runtime.sendMessage(
+      { type: 'SAVE_SETTINGS', settings: { disabledOrigins: [target] } },
+      () => done()
+    );
+  }), origin);
+  await popup.waitForTimeout(500);
+
+  await page.bringToFront();
+  await page.reload();
+  await page.click('#plain');
+  await page.waitForTimeout(2000);
+  const marksWhenDisabled = await page.locator('.graimmer-mark').count();
+  record('disabling a site actually stops the checker there',
+    marksWhenDisabled === 0, `still painted ${marksWhenDisabled} marks`);
+
+  // And re-enabling brings it back, so the switch is not one-way.
+  await popup.evaluate(() => new Promise((done) => {
+    chrome.runtime.sendMessage({ type: 'SAVE_SETTINGS', settings: { disabledOrigins: [] } }, () => done());
+  }));
+  await popup.waitForTimeout(500);
+  await page.bringToFront();
+  await page.reload();
+  await page.click('#plain');
+  await page.waitForTimeout(2000);
+  const marksWhenReenabled = await page.locator('.graimmer-mark').count();
+  record('re-enabling a site restores checking',
+    marksWhenReenabled > 0, `expected marks, got ${marksWhenReenabled}`);
 } finally {
   await context.close();
   server.close();

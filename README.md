@@ -38,6 +38,8 @@ Re-run `npm run build` and press reload on the extension card to pick up changes
 
 Two ways to fix things: click any underline for a suggestion card, or click the **issue-count badge** in the corner of the field to see every problem in one list before you send.
 
+The toolbar icon turns grAImmer off for the site you are on — useful for a web IDE, an internal tool, or anywhere the underlines are noise.
+
 **Confused word pairs matter most for email.** Every word in that category is spelled correctly, so no dictionary can catch them — they need patterns that read the surrounding words.
 
 ## What it will miss
@@ -64,7 +66,9 @@ A dictionary alone would wreck a real email — a typical reply produces around 
 - Capitalized words mid-sentence, treated as names
 - Code blocks and inline code
 
-The last one is a real trade: a typo inside a capitalized word (`Micorsoft`) will slip through. In an inbox full of client and colleague names, that is worth it. It is a setting.
+**Code editors are skipped entirely.** Monaco, CodeMirror and Ace all present as ordinary editable fields, and prose rules are simply wrong in source — so a web IDE would light up from top to bottom.
+
+The capitalized-word rule is a real trade: a typo inside a capitalized word (`Micorsoft`) will slip through. In an inbox full of client and colleague names, that is worth it. It is a setting.
 
 **"Add to dictionary" is different from skipping.** An added word becomes *correct*, so `Grafana` stops being flagged while `Graffana` is still caught and can be corrected to it.
 
@@ -87,11 +91,14 @@ The last one is a real trade: a typo inside a capitalized word (`Micorsoft`) wil
 ## Development
 
 ```bash
-npm test              # 61 unit tests - rules, skip rules, offsets, geometry
-npm run test:harness  # builds the test bench and verifies it in real Chromium
-npm run test:e2e      # loads the built extension into a throwaway Chrome profile
-npm run test:all      # all three
+npm test                # 61 unit    - rules, skip rules, offsets, geometry
+npm run test:selectors  # 32 selector - profiles vs the markup each site ships
+npm run test:harness    # 12 harness  - the engine in real Chromium
+npm run test:e2e        # 25 e2e      - the built extension in a throwaway profile
+npm run test:all        # all four (130 checks)
 ```
+
+The selector suite exists because a typo there is the most dangerous failure in the codebase: the extension loads, attaches to nothing, reports no error, and looks exactly like being broken. Nothing else would catch it.
 
 ### The test bench
 
@@ -114,11 +121,14 @@ src/content/       runs in the page
   overlay.js         the only code that paints
   card.js            the suggestion popup
   site-profiles.js   every per-site fact in the codebase
+  badge.js           issue count and pre-send panel
   spell-client.js    result cache + messaging
 
 src/background/    one instance, all tabs
   dictionary-service.js   check(word) / suggest(word) - the swappable one
   storage.js              personal dictionary and settings
+
+src/ui/            popup.html (per-site) and options.html (everything)
 ```
 
 Two seams are deliberate. `dictionary-service` exposes only `check` and `suggest`, so swapping nspell for a succinct trie later touches one file. `field-adapter` exposes `getText` / `getBoxes` / `replaceRange`, so every site is one of two implementations plus a quirks profile.

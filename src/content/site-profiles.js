@@ -97,6 +97,22 @@ const IMPOSSIBLE = [
   },
 ];
 
+/**
+ * Code editors are the biggest source of noise on the open web. Monaco,
+ * CodeMirror and Ace all present as `contenteditable` or a textarea, so
+ * without this every identifier and keyword in a web IDE gets underlined.
+ *
+ * The skip rules do not save us here: they drop things that LOOK like
+ * identifiers, but ordinary code is full of real English words used as
+ * names, and prose rules like capitalization are simply wrong in source.
+ *
+ * Matched with `closest()` rather than on the field itself, because these
+ * editors put their identifying class on a wrapper, not the editable node.
+ */
+export const CODE_EDITOR_ANCESTORS =
+  '.monaco-editor, .cm-editor, .CodeMirror, .ace_editor, ' +
+  '[data-mode-id], [role="code"], pre[contenteditable]';
+
 export const DEFAULT_PROFILE = {
   id: 'default',
   tier: 3,

@@ -4,32 +4,38 @@
   "version": "0.1.0",
   "description": "Spelling and grammar checking as you type. Rule-based, English only, and nothing you type ever leaves the browser.",
   "minimum_chrome_version": "116",
-
-  "permissions": ["storage"],
-
-  "host_permissions": ["<all_urls>"],
-
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
-
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
-      "css": ["content.css"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
       "run_at": "document_idle",
       "all_frames": true
     }
   ],
-
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true
   },
-
   "action": {
-    "default_title": "grAImmer"
+    "default_title": "grAImmer",
+    "default_popup": "popup.html"
   }
 }

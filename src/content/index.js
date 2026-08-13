@@ -16,7 +16,12 @@ import { createRichAdapter } from './adapters/rich.js';
 import { createOverlay } from './overlay.js';
 import { createCard } from './card.js';
 import { createBadge } from './badge.js';
-import { profileForHost, impossibleForHost, IGNORE_DATA_GRAMM_BY_DEFAULT } from './site-profiles.js';
+import {
+  profileForHost,
+  impossibleForHost,
+  IGNORE_DATA_GRAMM_BY_DEFAULT,
+  CODE_EDITOR_ANCESTORS,
+} from './site-profiles.js';
 
 const DEBOUNCE_MS = 500;
 const MAX_FIELD_LENGTH = 100_000;
@@ -98,6 +103,8 @@ function isEditable(element) {
   if (!element || element.nodeType !== Node.ELEMENT_NODE) return false;
   if (profile.excludeSelector && element.matches(profile.excludeSelector)) return false;
   if (element.closest('[aria-hidden="true"]')) return false;
+  // Prose rules are wrong in source code, and a web IDE would light up.
+  if (element.closest(CODE_EDITOR_ANCESTORS)) return false;
 
   // `data-gramm="false"` is ignored by default — see site-profiles.js for the
   // full reasoning. Honouring it would silently disable grAImmer on Slack.
