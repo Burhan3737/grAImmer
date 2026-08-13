@@ -196,6 +196,33 @@ try {
   await page.screenshot({ path: join(root, 'dist/extension-shot.png') });
   await page.keyboard.press('Escape');
 
+  /* ---------- a field removed from the DOM must take its UI with it */
+  // Gmail creates and destroys compose windows constantly. An overlay left
+  // behind after its field is gone floats over unrelated page content and
+  // accumulates one layer per compose window opened.
+  const orphaned = await page.evaluate(async () => {
+    const doomed = document.createElement('textarea');
+    doomed.value = 'i dont think there is 3 items';
+    document.body.appendChild(doomed);
+    doomed.focus();
+    await new Promise((r) => setTimeout(r, 1400));
+    const painted = document.querySelectorAll('.graimmer-mark').length;
+
+    doomed.remove();
+    await new Promise((r) => setTimeout(r, 900));
+    return {
+      painted,
+      layers: document.querySelectorAll('.graimmer-layer').length,
+      marks: document.querySelectorAll('.graimmer-mark').length,
+      badges: [...document.querySelectorAll('.graimmer-badge')].filter((b) => !b.hidden).length,
+    };
+  });
+  record('a dynamically added field is checked', orphaned.painted > 0,
+    `expected marks, got ${orphaned.painted}`);
+  record('removing a field tears down its overlay and badge completely',
+    orphaned.layers === 0 && orphaned.marks === 0 && orphaned.badges === 0,
+    `after removal: ${orphaned.layers} layers, ${orphaned.marks} marks, ${orphaned.badges} badges left behind`);
+
   /* --------------------------------------- 11. the options page loads */
   const options = await context.newPage();
   const optionErrors = [];

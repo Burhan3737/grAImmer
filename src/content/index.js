@@ -176,6 +176,8 @@ function attach(element) {
   observer.observe(element, { childList: true, subtree: true, characterData: true });
   active.observer = observer;
 
+  // Also the removal signal: a detached element reports a zero box, which
+  // fires this and lets schedulePaint notice `isConnected` is false.
   const resizeObserver = new ResizeObserver(() => schedulePaint());
   resizeObserver.observe(element);
   active.resizeObserver = resizeObserver;
@@ -230,6 +232,10 @@ function ignoreKey(issue) {
 
 function paint(issues) {
   if (!active) return;
+  if (!active.element.isConnected) {
+    detach();
+    return;
+  }
   active.issues = issues;
   active.adapter.sync?.();
   active.overlay.paint(issues);
@@ -241,6 +247,15 @@ function schedulePaint() {
   active.raf = requestAnimationFrame(() => {
     if (!active) return;
     active.raf = null;
+
+    // The field may have been removed while we waited for the frame. Gmail
+    // creates and destroys compose windows constantly, and a teardown here
+    // is what stops an orphaned overlay, badge and measuring mirror from
+    // outliving their field, along with the observers holding it alive.
+    if (!active.element.isConnected) {
+      detach();
+      return;
+    }
     // Re-read the DOM first. Quill and RoosterJS rebuild nodes as a matter of
     // course, so a cached text node may be detached and measure nothing.
     active.adapter.sync?.();
