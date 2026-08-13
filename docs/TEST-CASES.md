@@ -2,7 +2,7 @@
 
 Every case in the suite, what it pins down, and — at the end — what is deliberately not covered.
 
-Run with `npm run test:all`. Totals as of the current commit: **61 unit + 32 selector + 12 harness + 25 end-to-end = 130**.
+Run with `npm run test:all`. Totals as of the current commit: **63 unit + 32 selector + 12 harness + 30 end-to-end = 137**.
 
 ---
 
@@ -130,6 +130,17 @@ Hand-written rectangles. These are the cases that are painful to reproduce in a 
 | `card-clamped-right` | a word near the right edge does not push it off screen |
 | `card-clamped-left` | it never goes off the left edge |
 
+## Unit — performance (2)
+
+Asserts **shape, not speed**. An absolute millisecond budget would fail on a loaded machine and teach everyone to ignore the result.
+
+| id | pins down |
+|---|---|
+| `perf-linear-scaling` | 4x the text must not cost more than 8x the time — catches an accidental O(n²), not a 20% slowdown |
+| `perf-typical-email` | a normal-length email checks within one 60Hz frame |
+
+These exist because benchmarking found **three separate quadratic scans**, none of which reading the code had revealed: `tokens.find()` inside a per-sentence loop in two different files, and `dedupe()` scanning every kept issue per candidate. Together they cost 116ms on a 95k-character document; it is now 14.8ms with identical output. Email was always short enough that none of it was visible — it would have surfaced the first time someone pasted a long document into a compose box.
+
 ---
 
 ## Selectors — real Chromium (32)
@@ -176,7 +187,7 @@ A selector typo is the most dangerous failure in this codebase: the extension lo
 
 ---
 
-## End-to-end — the loaded extension (25)
+## End-to-end — the loaded extension (30)
 
 `npm run test:e2e`. Throwaway Chrome profile under the OS temp directory, deleted afterwards. Full Chromium, because the default headless shell cannot load extensions at all. Fixture served from `127.0.0.1`.
 
@@ -205,12 +216,21 @@ A selector typo is the most dangerous failure in this codebase: the extension lo
 23. popup renders without errors
 24. disabling a site actually stops the checker there
 25. re-enabling a site restores checking
+26. applying a fix edits a contenteditable
+27. the fix lands as real text, not markup
+28. the caret stays inside the field after a fix
+29. an unknown word is flagged before it is added
+30. adding a word to the dictionary stops it being flagged
 
 **Check 19 caught a leak the design had promised to prevent.** `detach()` was only ever called from `attach()`, so nothing noticed a field being removed — after closing a compose window a layer, badge, panel and measuring mirror stayed in the page with live observers holding a detached node. The visible symptom was masked by accident (a removed element reports a zero box, which the overlay early-returns on), and masked is not fixed.
 
 **Check 17 caught a stranded badge.** It clamped itself into the viewport, which is right for a card the user just opened and wrong for a badge that belongs to a field. Scrolling a compose box away up a long thread left a floating "5 issues" pill over unrelated content.
 
 **Check 9 caught a second bug:** the card focuses its first suggestion for keyboard access, which fired `focusout` on the field, whose handler closed the card. It dismissed itself in the tick it opened.
+
+**Checks 26–28 cover the riskiest code in the project** — DOM surgery inside someone else's editor, plus caret restoration. The textarea path shares none of it. Losing the caret means typing after a fix jumps to the start of the field.
+
+**Check 30 caught a feature that did nothing.** Adding a word from the options page stored it but never stopped the underline: the content script's cache still held the stale "not a word" verdict, and only the suggestion card's path invalidated it. Storing a preference nothing reads is the failure mode worth testing for twice.
 
 **Check 2 pins down a startup race.** It focuses the field with no grace period at all. Settings arrive asynchronously from a worker that may be asleep, and `enabledHere()` originally treated "not loaded yet" as "switched off" — so a field focused before they landed was discarded and never retried. In practice: open Gmail, click compose quickly, and grAImmer does nothing until you click away and back.
 

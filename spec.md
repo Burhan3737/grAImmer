@@ -221,7 +221,7 @@ Recorded with reasoning so the work isn't re-derived later.
 
 ## 9. Current state
 
-Built and passing: **61 unit + 32 selector + 12 harness + 25 end-to-end = 130 automated checks.**
+Built and passing: **63 unit + 32 selector + 12 harness + 30 end-to-end = 137 automated checks.**
 
 | Decision | Built? | Notes |
 |---|---|---|
@@ -238,7 +238,7 @@ Built and passing: **61 unit + 32 selector + 12 harness + 25 end-to-end = 130 au
 | Per-site disable | yes | toolbar popup; asserted to stop the checker, not just record a preference |
 | Code editors skipped | yes | Monaco, CodeMirror, Ace — prose rules are wrong in source |
 
-**Seven bugs were caught by tests**, each of which would otherwise have shipped:
+**Eight bugs were caught by tests**, each of which would otherwise have shipped:
 
 1. Periods inside `3.5` and `grafana.acme.io` split sentences, so the next word was flagged as an uncapitalized sentence start.
 2. The proper-noun skip suppressed *spacing* errors — which produced the purpose-scoped `excludeReasons` mechanism.
@@ -248,7 +248,9 @@ Built and passing: **61 unit + 32 selector + 12 harness + 25 end-to-end = 130 au
 6. **The issue badge stranded itself.** It clamped into the viewport, which is right for a card the user just opened and wrong for a badge belonging to a field. Scrolling a compose box away up a long thread left a floating "5 issues" pill over unrelated content.
 7. **Overlays outlived their fields.** §5.1 promised teardown on removal; `detach()` was only ever called from `attach()`. The visible symptom was masked by accident — a removed element reports a zero box, which the overlay early-returns on — but the layer, badge, panel, mirror and their observers stayed in the page holding a detached node.
 
-The last three were found by writing tests for cases the suite had never exercised, not by reading the code. That is the argument for the selector suite in particular: it covers the one failure mode — a typo in a site selector — that produces no error and looks identical to the extension simply being broken.
+8. **The personal dictionary did not suppress flags.** Adding a word from the options page stored it and changed nothing, because the content script's word cache still held the stale verdict and only the suggestion card's path invalidated it.
+
+The last four were found by writing tests for cases the suite had never exercised, not by reading the code. That is the argument for the selector suite in particular: it covers the one failure mode — a typo in a site selector — that produces no error and looks identical to the extension simply being broken.
 
 **Not verified, and cannot be automated** — the manual QA checklist is in `docs/TEST-CASES.md`:
 

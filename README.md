@@ -91,11 +91,11 @@ The capitalized-word rule is a real trade: a typo inside a capitalized word (`Mi
 ## Development
 
 ```bash
-npm test                # 61 unit    - rules, skip rules, offsets, geometry
+npm test                # 63 unit     - rules, skip rules, offsets, geometry, perf
 npm run test:selectors  # 32 selector - profiles vs the markup each site ships
 npm run test:harness    # 12 harness  - the engine in real Chromium
-npm run test:e2e        # 25 e2e      - the built extension in a throwaway profile
-npm run test:all        # all four (130 checks)
+npm run test:e2e        # 30 e2e      - the built extension in a throwaway profile
+npm run test:all        # all four (137 checks)
 ```
 
 The selector suite exists because a typo there is the most dangerous failure in the codebase: the extension loads, attaches to nothing, reports no error, and looks exactly like being broken. Nothing else would catch it.
