@@ -21,12 +21,38 @@ import { profileForHost, impossibleForHost, IGNORE_DATA_GRAMM_BY_DEFAULT } from 
 const DEBOUNCE_MS = 500;
 const MAX_FIELD_LENGTH = 100_000;
 
+/**
+ * Used only when the background worker cannot be reached at all. Mirrors
+ * DEFAULT_SETTINGS in background/storage.js; everything on, because a user
+ * who installed a checker expects it to check.
+ */
+const FALLBACK_SETTINGS = {
+  enabled: true,
+  skip: { urls: true, identifiers: true, quoted: true, signature: true, propernouns: true, code: true },
+  checks: { spelling: true, confusions: true, apostrophes: true, capitalization: true, mechanics: true, agreement: true },
+  sites: {},
+  disabledOrigins: [],
+};
+
 const profile = profileForHost();
 const impossible = impossibleForHost();
 
 let config = { settings: null, words: [] };
 let active = null;
 let version = 0;
+
+/**
+ * Settings arrive asynchronously from the background worker, and the worker
+ * may be asleep when the page loads — which is its normal state (spec D16).
+ * Focusing a field before they arrive must not silently do nothing, so the
+ * element is remembered and attached once the config lands.
+ *
+ * Without this, clicking straight into Gmail's compose box after a page load
+ * leaves grAImmer inert until you click away and back, with no indication
+ * that anything is wrong.
+ */
+let configLoaded = false;
+let pendingElement = null;
 
 /* ------------------------------------------------------------- config */
 
@@ -53,7 +79,14 @@ function settingsForCheck() {
   };
 }
 
+/**
+ * Deliberately distinguishes "switched off" from "not loaded yet". Conflating
+ * them is what produced the race described above: a missing config looked
+ * identical to a user disabling the extension, so the field was dropped
+ * instead of queued.
+ */
 function enabledHere() {
+  if (!configLoaded) return false;
   if (!config.settings?.enabled) return false;
   if (config.settings.disabledOrigins?.includes(location.origin)) return false;
   return true;
@@ -63,7 +96,7 @@ function enabledHere() {
 
 function isEditable(element) {
   if (!element || element.nodeType !== Node.ELEMENT_NODE) return false;
-  if (element.matches(profile.excludeSelector || '\\0')) return false;
+  if (profile.excludeSelector && element.matches(profile.excludeSelector)) return false;
   if (element.closest('[aria-hidden="true"]')) return false;
 
   // `data-gramm="false"` is ignored by default — see site-profiles.js for the
@@ -199,7 +232,7 @@ function paint(issues) {
   if (!active) return;
   active.issues = issues;
   active.adapter.sync?.();
-  active.overlay.paint(issues, profile.scrollContainerIsField);
+  active.overlay.paint(issues);
   active.badge.update(issues, active.adapter.getContainerRect());
 }
 
@@ -211,7 +244,7 @@ function schedulePaint() {
     // Re-read the DOM first. Quill and RoosterJS rebuild nodes as a matter of
     // course, so a cached text node may be detached and measure nothing.
     active.adapter.sync?.();
-    active.overlay.paint(active.issues, profile.scrollContainerIsField);
+    active.overlay.paint(active.issues);
     active.badge.update(active.issues, active.adapter.getContainerRect());
   });
 }
@@ -252,15 +285,34 @@ function addWord(issue) {
 
 /* ------------------------------------------------------------- events */
 
+/**
+ * On a named site we know exactly which element is the composer, so a rich
+ * field that is NOT it is treated as off-limits: Slack's off-screen paste
+ * trap and its recipient picker are both `contenteditable`, and attaching to
+ * either would paint underlines on something that is not a message.
+ *
+ * Plain textareas and text inputs are exempt from that narrowing. They carry
+ * no such traps, and a named site still has ordinary search boxes and forms
+ * that are worth checking.
+ *
+ * Elsewhere (the default profile) anything editable is fair game.
+ */
+function shouldAttach(element) {
+  if (!isEditable(element)) return false;
+  if (profile.tier > 2) return true;
+  if (element.matches('textarea, input')) return true;
+  return Boolean(profile.editableSelector) && element.matches(profile.editableSelector);
+}
+
 document.addEventListener('focusin', (event) => {
-  const element = event.target;
-  if (!enabledHere()) return;
-  if (!isEditable(element)) return;
-  if (profile.editableSelector && !element.matches(profile.editableSelector)) {
-    // Still attach on non-profile fields — profiles narrow, they do not gate.
-    if (profile.tier <= 2 && !element.matches('textarea, input')) return;
+  if (!shouldAttach(event.target)) return;
+  if (!configLoaded) {
+    // Queue rather than discard — boot() picks this up when settings land.
+    pendingElement = event.target;
+    return;
   }
-  attach(element);
+  if (!enabledHere()) return;
+  attach(event.target);
 }, true);
 
 document.addEventListener('focusout', (event) => {
@@ -297,6 +349,19 @@ chrome.storage?.onChanged?.addListener(async () => {
     console.info(`[grAImmer] inactive on this site: ${impossible.reason}`);
     return;
   }
+
   const loaded = await loadConfig();
   if (loaded) config = loaded;
+  // If the worker never answered, fall back to defaults rather than staying
+  // inert forever. A checker that silently does nothing is worse than one
+  // running on defaults it will correct on the next storage change.
+  if (!config.settings) config = { settings: { ...FALLBACK_SETTINGS }, words: [] };
+  configLoaded = true;
+
+  // Catch the field the user focused while we were waiting. activeElement is
+  // consulted too, because focus can be set before the content script runs at
+  // all — document_idle fires after the page has settled.
+  const candidate = pendingElement || document.activeElement;
+  pendingElement = null;
+  if (candidate && enabledHere() && shouldAttach(candidate)) attach(candidate);
 })();

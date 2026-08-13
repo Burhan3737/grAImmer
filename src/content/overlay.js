@@ -38,10 +38,15 @@ export function createOverlay(adapter, { onMarkClick }) {
   }
 
   /**
+   * Fields that scroll their own content (Slack's composer, any tall
+   * textarea) need no special handling: `getBoxes` clips to the container
+   * rect, and the layer is sized to the same rect with `overflow: hidden`.
+   * Text scrolled out of the field therefore paints nothing, which the
+   * end-to-end suite asserts rather than assumes.
+   *
    * @param {Array} issues
-   * @param {boolean} fieldIsScrollContainer  clip to the field, e.g. Slack
    */
-  function paint(issues, fieldIsScrollContainer = false) {
+  function paint(issues) {
     painted = issues;
     clear();
 
@@ -81,7 +86,6 @@ export function createOverlay(adapter, { onMarkClick }) {
     });
 
     layer.appendChild(fragment);
-    void fieldIsScrollContainer;
   }
 
   function hide() {

@@ -68,8 +68,6 @@ const PROFILES = [
     excludeSelector: '.ql-clipboard, .c-multi_select_input__input',
     observeAttributes: false,
     volatileDom: true,
-    // The editor is its own scroll container, so the overlay must track it.
-    scrollContainerIsField: true,
     // Chat register: sentence-case warnings are noise here (spec §3.3).
     checks: { capitalization: false },
     notes: 'Quill 1.3.7 - Parchment replaceChild()s foreign nodes',

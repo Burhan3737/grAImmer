@@ -89,22 +89,50 @@ export function createBadge({ onSelect }) {
     position();
   }
 
-  /** Bottom-right of the field, nudged inside so it never sits on the border. */
+  /**
+   * Bottom-right of the field, nudged inside so it never sits on the border.
+   *
+   * Deliberately NOT clamped into the viewport. The badge belongs to its
+   * field, so when the field scrolls away the badge must leave with it —
+   * clamping would strand a floating "5 issues" pill over unrelated content
+   * partway down a long email thread. The card clamps because the user just
+   * asked for it; the badge tracks because nobody did.
+   */
   function position() {
     if (!anchorRect) return;
 
+    // Fully out of view, or collapsed because the field was hidden.
+    const offscreen =
+      anchorRect.bottom <= 0 ||
+      anchorRect.top >= window.innerHeight ||
+      anchorRect.right <= 0 ||
+      anchorRect.left >= window.innerWidth ||
+      anchorRect.width === 0 ||
+      anchorRect.height === 0;
+
+    if (offscreen) {
+      badge.hidden = true;
+      closePanel();
+      return;
+    }
+
+    badge.hidden = false;
+
     const badgeWidth = badge.offsetWidth || 74;
-    const left = Math.max(4, anchorRect.left + anchorRect.width - badgeWidth - 8);
-    const top = Math.max(4, anchorRect.top + anchorRect.height - (badge.offsetHeight || 22) - 8);
+    const badgeHeight = badge.offsetHeight || 22;
+    const left = anchorRect.left + anchorRect.width - badgeWidth - 8;
+    const top = anchorRect.top + anchorRect.height - badgeHeight - 8;
     badge.style.left = `${left}px`;
     badge.style.top = `${top}px`;
 
     if (panel.hidden) return;
+
+    // The panel is only open because the user opened it, so unlike the badge
+    // it is kept on screen rather than allowed to run off the edge.
     const panelHeight = panel.offsetHeight;
     const panelWidth = panel.offsetWidth;
-    // Prefer above the badge; drop below only when there is no room up there.
     const above = top - panelHeight - 6;
-    panel.style.top = `${above >= 4 ? above : Math.min(top + 30, window.innerHeight - panelHeight - 4)}px`;
+    panel.style.top = `${above >= 4 ? above : Math.max(4, Math.min(top + 30, window.innerHeight - panelHeight - 4))}px`;
     panel.style.left = `${Math.max(4, Math.min(left + badgeWidth - panelWidth, window.innerWidth - panelWidth - 4))}px`;
   }
 
@@ -118,9 +146,10 @@ export function createBadge({ onSelect }) {
       return;
     }
 
-    badge.hidden = false;
     badge.textContent = issues.length === 1 ? '1 issue' : `${issues.length} issues`;
     badge.setAttribute('aria-label', `${issues.length} writing issues. Show list.`);
+    // position() decides visibility — it is the only place that knows whether
+    // the field is actually on screen.
     if (!panel.hidden) openPanel();
     else position();
   }

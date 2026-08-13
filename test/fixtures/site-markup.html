@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Site markup fixture</title></head>
+<body>
+
+<!--
+  Structural markup for each Tier 1 and Tier 2 site, reproduced from the
+  attributes those sites actually ship. These are NOT captures - no styling,
+  no content, no PII, nothing copyrightable. Only the attribute shapes that
+  the profile selectors in src/content/site-profiles.js must match.
+
+  This exists because a typo in a selector fails SILENTLY: the extension
+  loads, attaches to nothing, and shows no error. On a Tier 1 site that is
+  indistinguishable from being broken, and no other test would catch it.
+
+  Elements marked data-should="no" are the near-misses that must NOT match -
+  Slack's off-screen paste trap and its recipient picker are both
+  contenteditable and neither is a message composer.
+-->
+
+<!-- Gmail: top-level document, not an iframe. g_editable is Gmail's own. -->
+<div id="gmail-compose"
+     data-site="gmail" data-should="yes"
+     role="textbox" g_editable="true" contenteditable="true"
+     aria-label="Message Body"></div>
+
+<!-- Outlook web -->
+<div id="outlook-compose"
+     data-site="outlook" data-should="yes"
+     contenteditable="true" role="textbox" aria-multiline="true"></div>
+
+<!-- GitHub: the plain-textarea control case -->
+<textarea id="github-comment" data-site="github" data-should="yes"></textarea>
+
+<!-- Slack: Quill editor inside the composer container -->
+<div data-qa="message_input" class="c-wysiwyg_container">
+  <div class="c-texty_input ql-container">
+    <div id="slack-composer"
+         data-site="slack" data-should="yes"
+         class="ql-editor" contenteditable="true"
+         role="textbox" data-gramm="false"></div>
+    <!-- Off-screen paste trap. Contenteditable, but never a composer. -->
+    <div id="slack-clipboard"
+         data-site="slack" data-should="no"
+         class="ql-clipboard" contenteditable="true"></div>
+  </div>
+</div>
+<!-- Recipient picker, also contenteditable, also not a composer. -->
+<div id="slack-picker"
+     data-site="slack" data-should="no"
+     class="c-multi_select_input__input" contenteditable="true"></div>
+
+<!-- LinkedIn: post composer is Quill; the DM composer engine is unverified. -->
+<div id="linkedin-post"
+     data-site="linkedin" data-should="yes"
+     class="ql-editor" contenteditable="true" role="textbox"></div>
+<div id="linkedin-dm"
+     data-site="linkedin" data-should="yes"
+     contenteditable="true" role="textbox" aria-label="Write a message"></div>
+
+<!-- Ordinary sites, matched by the default profile -->
+<textarea id="generic-textarea" data-site="default" data-should="yes"></textarea>
+<input id="generic-input" data-site="default" data-should="yes" type="text">
+<div id="generic-rich" data-site="default" data-should="yes" contenteditable="true"></div>
+<input id="generic-password" data-site="default" data-should="no" type="password">
+<input id="generic-number" data-site="default" data-should="no" type="number">
+
+</body>
+</html>

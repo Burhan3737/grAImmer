@@ -56,40 +56,17 @@ try {
 
   const extensionId = worker.url().split('/')[2];
 
-  /* ------------------------------- 2. the dictionary answers a lookup */
-  const verdicts = await worker.evaluate(async () => {
-    const { checkWords } = await import('./background.js')
-      .then((m) => m)
-      .catch(() => ({}));
-    void checkWords;
-    return null;
-  }).catch(() => null);
-  void verdicts;
-
-  const roundTrip = await new Promise((resolve) => {
-    const page = context.newPage();
-    page.then(async (p) => {
-      await p.goto(`${origin}/`);
-      const result = await p.evaluate(
-        (id) => new Promise((done) => {
-          chrome.runtime.sendMessage(id, { type: 'CHECK_WORDS', words: ['recieved', 'received'] }, (r) => done(r));
-        }),
-        extensionId
-      ).catch(() => null);
-      await p.close();
-      resolve(result);
-    });
-  }).catch(() => null);
-  // externally_connectable is not declared, so this path is expected to be
-  // unavailable; the in-page content script exercises the same code below.
-  void roundTrip;
-
   /* ------------------------------------ 3. content script does its job */
   const page = await context.newPage();
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(String(error)));
   await page.goto(`${origin}/`);
 
+  // Focus IMMEDIATELY, with no grace period. Settings arrive asynchronously
+  // from a worker that may be asleep, and a field focused before they land
+  // must still be picked up. Losing this race means clicking straight into
+  // Gmail's compose box after a page load leaves grAImmer inert, with nothing
+  // to indicate anything is wrong.
   await page.click('#plain');
   await page.waitForSelector('.graimmer-layer .graimmer-mark', { timeout: 15000 });
   record('content script attaches and paints on a textarea', true);
@@ -144,7 +121,32 @@ try {
   record('applying a suggestion edits the field',
     fixedValue !== 'i dont think so.', `value still "${fixedValue}"`);
 
-  /* -------------------------- 10. the badge and panel (spec D2) work */
+  /* ------------- 10. a field that is its own scroll container (Slack) */
+  await page.click('#scroller');
+  await page.waitForTimeout(1600);
+
+  const scrollerBefore = await page.locator('.graimmer-mark').count();
+  record('underlines appear in a scrolling field', scrollerBefore > 0,
+    `expected >0 marks, got ${scrollerBefore}`);
+
+  // Scroll the issue out of view. Its rectangles still exist and are still
+  // reported by getClientRects, so anything not clipped would paint outside
+  // the field - underlines floating over whatever sits above it.
+  const strayMarks = await page.evaluate(async () => {
+    const field = document.getElementById('scroller');
+    field.scrollTop = 0;
+    await new Promise((r) => setTimeout(r, 400));
+    const box = field.getBoundingClientRect();
+    return [...document.querySelectorAll('.graimmer-mark')]
+      .map((m) => m.getBoundingClientRect())
+      .filter((r) => r.height > 0)
+      .filter((r) => r.bottom > box.bottom + 1 || r.top < box.top - 1)
+      .length;
+  });
+  record('no underline is painted outside a scrolled field',
+    strayMarks === 0, `${strayMarks} marks escaped the field bounds`);
+
+  /* -------------------------- 11. the badge and panel (spec D2) work */
   await page.click('#plain');
   await page.fill('#plain', 'i dont think there is 3 items. your welcome to check the the logs.');
   await page.waitForTimeout(1800);
@@ -162,6 +164,33 @@ try {
   await page.locator('.graimmer-panel-row').first().click();
   await page.waitForSelector('.graimmer-card', { timeout: 5000 });
   record('selecting from the panel opens the card for that issue', true);
+  await page.keyboard.press('Escape');
+
+  /* --------- the badge must follow its field, not stick to the screen */
+  const badgeStrays = await page.evaluate(async () => {
+    window.scrollTo(0, 0);
+    await new Promise((r) => setTimeout(r, 300));
+    const field = document.getElementById('plain');
+    // Put the field well above the viewport.
+    field.scrollIntoView();
+    window.scrollBy(0, 900);
+    await new Promise((r) => setTimeout(r, 500));
+
+    const badge = document.querySelector('.graimmer-badge');
+    if (!badge || badge.hidden) return { verdict: 'hidden' };
+    const b = badge.getBoundingClientRect();
+    const f = field.getBoundingClientRect();
+    // The badge is anchored to the field's bottom-right. If the field has
+    // left the viewport, a badge still sitting in view is stranded over
+    // unrelated content.
+    const fieldVisible = f.bottom > 0 && f.top < window.innerHeight;
+    const badgeVisible = b.bottom > 0 && b.top < window.innerHeight;
+    return { verdict: !fieldVisible && badgeVisible ? 'stranded' : 'tracking' };
+  });
+  record('the issue badge does not strand itself when its field scrolls away',
+    badgeStrays.verdict !== 'stranded',
+    'badge stayed on screen after the field left it');
+  await page.evaluate(() => window.scrollTo(0, 0));
 
   // Captured while the card is open, as a visual record of a passing run.
   await page.screenshot({ path: join(root, 'dist/extension-shot.png') });
