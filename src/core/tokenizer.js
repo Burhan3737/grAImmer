@@ -139,6 +139,38 @@ function endsWithAbbreviation(text, periodIndex) {
 }
 
 /**
+ * The first word token of each sentence, as a Set of start offsets.
+ *
+ * Both callers previously did `tokens.find(...)` inside a per-sentence loop,
+ * which is O(sentences x tokens). Email never noticed, but a long document
+ * did: at ~95k characters that is roughly 39 million comparisons, twice.
+ *
+ * Both arrays are already sorted by offset, so one merge pass suffices.
+ *
+ * @returns {Set<number>} start offsets of sentence-initial word tokens
+ */
+export function firstWordOffsets(tokens, sentences) {
+  const offsets = new Set();
+  let cursor = 0;
+
+  for (const sentence of sentences) {
+    // Skip tokens that ended before this sentence began.
+    while (cursor < tokens.length && tokens[cursor].start < sentence.start) cursor++;
+
+    let scan = cursor;
+    while (scan < tokens.length && tokens[scan].end <= sentence.end) {
+      if (tokens[scan].type === 'word') {
+        offsets.add(tokens[scan].start);
+        break;
+      }
+      scan++;
+    }
+  }
+
+  return offsets;
+}
+
+/**
  * @param {string} text
  * @returns {Array<{start: number, end: number, text: string}>}
  */

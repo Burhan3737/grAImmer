@@ -10,6 +10,8 @@
  * turn them on and off (spec §2 D6 — chat sites want different behaviour).
  */
 
+import { firstWordOffsets } from './tokenizer.js';
+
 export const SKIP_RULES = [
   { id: 'urls', label: 'URLs, emails, file paths' },
   { id: 'identifiers', label: 'ALL-CAPS tokens and identifiers' },
@@ -97,13 +99,7 @@ export function applySkipRules(text, tokens, sentences, settings = DEFAULT_SKIP_
   // Offset of the first word token in each sentence, so "mid-sentence" is
   // decidable without re-scanning. A capitalized word in first position is
   // just normal sentence casing and tells us nothing.
-  const sentenceFirstWord = new Set();
-  for (const sentence of sentences) {
-    const first = tokens.find(
-      (t) => t.start >= sentence.start && t.end <= sentence.end && t.type === 'word'
-    );
-    if (first) sentenceFirstWord.add(first.start);
-  }
+  const sentenceFirstWord = firstWordOffsets(tokens, sentences);
 
   tokens.forEach((token, index) => {
     const region = inAnyRegion(token, regions);
@@ -174,5 +170,40 @@ export function makeSkipPredicate(tokens, skipped, regions, excludeReasons = [])
   });
   for (const region of regions) spans.push([region.start, region.end]);
 
-  return (start, end) => spans.some(([s, e]) => start < e && end > s);
+  // Sorted and merged so lookup can binary-search instead of scanning.
+  //
+  // The naive version scanned every span per query, which made checking
+  // quadratic in document length: more text means both more rule matches and
+  // more spans for each one to scan. Measured on a long document, 2.7x the
+  // text cost 3.5x the time. Email is short enough that it never mattered,
+  // but the cost is unbounded and the fix is small.
+  spans.sort((a, b) => a[0] - b[0]);
+
+  const merged = [];
+  for (const span of spans) {
+    const last = merged[merged.length - 1];
+    if (last && span[0] <= last[1]) last[1] = Math.max(last[1], span[1]);
+    else merged.push([span[0], span[1]]);
+  }
+
+  return (start, end) => {
+    // Rightmost span beginning at or before `start`.
+    let low = 0;
+    let high = merged.length - 1;
+    let candidate = -1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (merged[mid][0] <= start) {
+        candidate = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    // Spans are disjoint after merging, so only the one at or before `start`
+    // and the one after it can overlap [start, end).
+    if (candidate >= 0 && merged[candidate][1] > start) return true;
+    const next = merged[candidate + 1];
+    return Boolean(next && next[0] < end);
+  };
 }

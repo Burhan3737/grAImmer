@@ -8,6 +8,8 @@
  * recorded as a known limit rather than shipped as noise.
  */
 
+import { firstWordOffsets } from './tokenizer.js';
+
 /** @typedef {{start:number,end:number,ruleId:string,category:string,severity:string,message:string,original:string,suggestions:string[]}} Issue */
 
 const GRAMMAR = 'grammar';
@@ -327,20 +329,19 @@ export function checkCapitalization(text, tokens, sentences, skipped) {
     );
   });
 
-  // Sentence starts
-  for (const sentence of sentences) {
-    const first = tokens.find(
-      (t) => t.start >= sentence.start && t.end <= sentence.end && t.type === 'word'
-    );
-    if (!first) continue;
-    if (skippedStarts.has(first.start)) continue;
-    if (!/^[a-z]/.test(first.text)) continue;
+  // Sentence starts. The offsets come from a single merge pass rather than a
+  // find() per sentence, which was quadratic in document length.
+  const firstStarts = firstWordOffsets(tokens, sentences);
+  for (const token of tokens) {
+    if (!firstStarts.has(token.start)) continue;
+    if (skippedStarts.has(token.start)) continue;
+    if (!/^[a-z]/.test(token.text)) continue;
     // "i" is already covered by its own rule with a better message.
-    if (first.text === 'i') continue;
+    if (token.text === 'i') continue;
     issues.push(
-      issue(first.start, first.end, text, 'sentence-caps', 'Capitalization', MECHANICS,
+      issue(token.start, token.end, text, 'sentence-caps', 'Capitalization', MECHANICS,
         'Sentences start with a capital letter.',
-        [first.text.charAt(0).toUpperCase() + first.text.slice(1)])
+        [token.text.charAt(0).toUpperCase() + token.text.slice(1)])
     );
   }
 

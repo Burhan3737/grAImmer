@@ -56,12 +56,23 @@ function dedupe(issues) {
     return b.end - b.start - (a.end - a.start);
   });
 
+  // Only the most recently kept issue can overlap the next candidate.
+  //
+  // Candidates arrive sorted by start, and kept issues are pairwise
+  // non-overlapping, so their ends are increasing too: if k1 starts before k2
+  // and they do not overlap, k1.end <= k2.start < k2.end. The furthest-right
+  // end therefore always belongs to the last one kept.
+  //
+  // Scanning all of `kept` per candidate instead made deduplication quadratic
+  // in issue count — 3,600 issues in a long document is 6.5 million
+  // comparisons, and it dominated everything else.
   const kept = [];
   for (const candidate of sorted) {
-    const overlaps = kept.some((k) => candidate.start < k.end && candidate.end > k.start);
-    if (!overlaps) kept.push(candidate);
+    const last = kept[kept.length - 1];
+    if (last && candidate.start < last.end) continue;
+    kept.push(candidate);
   }
-  return kept.sort((a, b) => a.start - b.start);
+  return kept;
 }
 
 /**
