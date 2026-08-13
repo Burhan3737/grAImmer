@@ -121,6 +121,40 @@ try {
   record('applying a suggestion edits the field',
     fixedValue !== 'i dont think so.', `value still "${fixedValue}"`);
 
+  /* ------- 9b. applying a fix inside a contenteditable — the Gmail path */
+  // The riskiest code in the project: DOM surgery inside someone else's
+  // editor, plus caret restoration. The textarea path above shares none of it.
+  await page.click('#rich');
+  await page.evaluate(() => {
+    const field = document.getElementById('rich');
+    field.innerHTML = '<div>i dont think so</div>';
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.waitForTimeout(1600);
+
+  const richBefore = await page.locator('#rich').innerText();
+  await page.locator('.graimmer-mark').first().click();
+  await page.waitForSelector('.graimmer-card', { timeout: 5000 });
+  await page.locator('.graimmer-card-fix').first().click();
+  await page.waitForTimeout(900);
+
+  const richAfter = await page.locator('#rich').innerText();
+  record('applying a fix edits a contenteditable',
+    richAfter !== richBefore, `text unchanged: "${richAfter}"`);
+  record('the fix lands as real text, not markup',
+    !/graimmer|<span/i.test(await page.innerHTML('#rich')),
+    'extension markup ended up inside the field');
+
+  // The caret must survive the surgery, or typing after a fix jumps to the
+  // start of the field.
+  const caretOk = await page.evaluate(() => {
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return false;
+    return document.getElementById('rich').contains(selection.getRangeAt(0).startContainer);
+  });
+  record('the caret stays inside the field after a fix', caretOk,
+    'selection was lost or moved outside the editor');
+
   /* ------------- 10. a field that is its own scroll container (Slack) */
   await page.click('#scroller');
   await page.waitForTimeout(1600);
@@ -257,6 +291,32 @@ try {
   const chips = await options.locator('.word').count();
   record('a word can be added to the personal dictionary', chips >= 1, `${chips} chips`);
   await options.close();
+
+  /* --------- the personal dictionary must actually suppress a flag */
+  // Adding a word is only meaningful if it stops the underline. Storing it
+  // and still flagging the word would be a feature that does nothing.
+  await page.bringToFront();
+  await page.click('#plain');
+  await page.fill('#plain', 'The zzquux service is fine.');
+  await page.waitForTimeout(2000);
+  const beforeAdd = await page.locator('.graimmer-mark[data-severity="spelling"]').count();
+  record('an unknown word is flagged before it is added',
+    beforeAdd >= 1, `expected a spelling mark, got ${beforeAdd}`);
+
+  const opts2 = await context.newPage();
+  await opts2.goto(`chrome-extension://${extensionId}/options.html`);
+  await opts2.waitForSelector('#new-word');
+  await opts2.locator('#new-word').fill('zzquux');
+  await opts2.locator('#add-word').click();
+  await opts2.waitForTimeout(700);
+  await opts2.close();
+
+  await page.bringToFront();
+  await page.fill('#plain', 'The zzquux service is still fine.');
+  await page.waitForTimeout(2200);
+  const afterAdd = await page.locator('.graimmer-mark[data-severity="spelling"]').count();
+  record('adding a word to the dictionary stops it being flagged',
+    afterAdd === 0, `still flagged ${afterAdd} spelling issues`);
 
   /* ------------------------- 12. the popup and per-site disable work */
   // Playwright cannot click a toolbar icon — that is an upstream browser

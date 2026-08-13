@@ -100,10 +100,26 @@ export async function resolveWords(words) {
   return verdicts;
 }
 
-/** Called when a word is added to the personal dictionary. */
+/** Called when a word is added to the personal dictionary from this page. */
 export function forget(word) {
   cache.delete(word);
   cache.delete(word.toLowerCase());
+}
+
+/**
+ * Drop every cached verdict.
+ *
+ * Required whenever the personal dictionary changes anywhere — including from
+ * the options page, or another tab, or another machine via sync. Those paths
+ * never call `forget`, so without this the cache keeps answering "not a word"
+ * for a word the user has just added, and the feature appears to do nothing.
+ *
+ * Clearing wholesale rather than surgically because the cache is cheap to
+ * refill: the worker answers in single-digit milliseconds once warm, and only
+ * words actually on screen get re-asked.
+ */
+export function clearCache() {
+  cache.clear();
 }
 
 export function cacheSize() {

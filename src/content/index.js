@@ -10,7 +10,7 @@
  */
 
 import { check } from '../core/engine.js';
-import { resolveWords, forget } from './spell-client.js';
+import { resolveWords, forget, clearCache } from './spell-client.js';
 import { createPlainAdapter } from './adapters/plain.js';
 import { createRichAdapter } from './adapters/rich.js';
 import { createOverlay } from './overlay.js';
@@ -359,7 +359,12 @@ document.addEventListener('input', (event) => {
 window.addEventListener('scroll', schedulePaint, true);
 window.addEventListener('resize', schedulePaint);
 
-chrome.storage?.onChanged?.addListener(async () => {
+chrome.storage?.onChanged?.addListener(async (changes) => {
+  // A personal-dictionary change makes every cached verdict suspect. The word
+  // may have been added from the options page, another tab, or another
+  // machine via sync - none of which go through forget().
+  if (Object.keys(changes).some((key) => key.startsWith('words:'))) clearCache();
+
   const next = await loadConfig();
   if (next) { config = next; runCheck(); }
 });
