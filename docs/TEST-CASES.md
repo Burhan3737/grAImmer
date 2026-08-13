@@ -2,7 +2,7 @@
 
 Every case in the suite, what it pins down, and — at the end — what is deliberately not covered.
 
-Run with `npm run test:all`. Totals as of the current commit: **61 unit + 12 harness + 13 end-to-end = 86**.
+Run with `npm run test:all`. Totals as of the current commit: **61 unit + 32 selector + 12 harness + 25 end-to-end = 130**.
 
 ---
 
@@ -132,6 +132,29 @@ Hand-written rectangles. These are the cases that are painful to reproduce in a 
 
 ---
 
+## Selectors — real Chromium (32)
+
+`npm run test:selectors`. Isolated context, no profile.
+
+A selector typo is the most dangerous failure in this codebase: the extension loads, attaches to nothing, reports no error, and looks exactly like being broken. Nothing else in the suite catches it — the engine tests pass because the engine is fine, and the end-to-end tests pass because they use a generic fixture.
+
+`test/fixtures/site-markup.html` reproduces the *attribute shapes* each site ships. No styling, no content, nothing copyrightable.
+
+**10 host-matching checks** — each hostname resolves to the right profile, including that `notgithub.com` and `github.com.evil.example` fall through to the default. Regex anchoring bugs are easy to write and invisible until someone else's site is treated as GitHub.
+
+**20 selector checks** — each profile attaches to the markup its site ships, and crucially *stays off* the near-misses:
+
+| Must NOT match | Why |
+|---|---|
+| `.ql-clipboard` | Slack's off-screen paste trap — contenteditable, never a composer |
+| `.c-multi_select_input__input` | Slack's recipient picker — same |
+| `input[type=password]` | never checked |
+| `input[type=number]` | never checked |
+
+**2 further checks** — Google Docs is recorded as impossible rather than silently absent, and the `data-gramm` decision is still documented in source so it can never become an accident.
+
+---
+
 ## Harness — real Chromium (12)
 
 `npm run test:harness`. Isolated browser context, no profile, no cookies.
@@ -153,7 +176,7 @@ Hand-written rectangles. These are the cases that are painful to reproduce in a 
 
 ---
 
-## End-to-end — the loaded extension (13)
+## End-to-end — the loaded extension (25)
 
 `npm run test:e2e`. Throwaway Chrome profile under the OS temp directory, deleted afterwards. Full Chromium, because the default headless shell cannot load extensions at all. Fixture served from `127.0.0.1`.
 
@@ -167,11 +190,33 @@ Hand-written rectangles. These are the cases that are painful to reproduce in a 
 8. a field marked `data-gramm="false"` is still checked
 9. clicking an underline opens the suggestion card
 10. applying a suggestion edits the field
-11. options page renders every check toggle
-12. options page has no errors
-13. a word can be added to the personal dictionary
+11. underlines appear in a scrolling field
+12. no underline is painted outside a scrolled field
+13. a code editor is not checked
+14. issue-count badge shows a count
+15. panel lists every issue
+16. selecting from the panel opens the card for that issue
+17. the issue badge does not strand itself when its field scrolls away
+18. a dynamically added field is checked
+19. removing a field tears down its overlay and badge completely
+20. options page renders every check toggle
+21. options page has no errors
+22. a word can be added to the personal dictionary
+23. popup renders without errors
+24. disabling a site actually stops the checker there
+25. re-enabling a site restores checking
+
+**Check 19 caught a leak the design had promised to prevent.** `detach()` was only ever called from `attach()`, so nothing noticed a field being removed — after closing a compose window a layer, badge, panel and measuring mirror stayed in the page with live observers holding a detached node. The visible symptom was masked by accident (a removed element reports a zero box, which the overlay early-returns on), and masked is not fixed.
+
+**Check 17 caught a stranded badge.** It clamped itself into the viewport, which is right for a card the user just opened and wrong for a badge that belongs to a field. Scrolling a compose box away up a long thread left a floating "5 issues" pill over unrelated content.
 
 **Check 9 caught a second bug:** the card focuses its first suggestion for keyboard access, which fired `focusout` on the field, whose handler closed the card. It dismissed itself in the tick it opened.
+
+**Check 2 pins down a startup race.** It focuses the field with no grace period at all. Settings arrive asynchronously from a worker that may be asleep, and `enabledHere()` originally treated "not loaded yet" as "switched off" — so a field focused before they landed was discarded and never retried. In practice: open Gmail, click compose quickly, and grAImmer does nothing until you click away and back.
+
+**Checks 24 and 25 assert behaviour, not storage.** Turning a site off must actually stop the checker there, not merely record a preference nothing reads — and it must be reversible.
+
+**Check 13 is counted by overlap**, not globally. The previously focused field keeps its underlines by design, so a global count would measure the wrong thing.
 
 **Check 8 is a product decision, not a technical one.** Slack's editor sets `data-gramm="false"` automatically. If grAImmer honoured it, it would silently show nothing on Slack. The test exists so that behaviour can never change by accident.
 

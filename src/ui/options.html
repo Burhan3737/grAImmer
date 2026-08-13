@@ -112,8 +112,10 @@ label.row input { margin-top: 4px; flex: 0 0 auto; }
           <span>Turn grAImmer off everywhere without uninstalling it.</span>
         </span>
       </label>
+      <p class="note">To turn grAImmer off for <strong>one site only</strong>, click its toolbar icon while you are on that site. Useful for a web IDE or an internal tool where the underlines are noise.</p>
+      <p class="note"><strong>Code editors are skipped automatically.</strong> Monaco, CodeMirror and Ace are left alone wherever they appear &mdash; prose rules are simply wrong in source code.</p>
       <p class="note"><strong>Google Docs cannot be supported.</strong> It paints text to a canvas, so there are no text nodes for any extension to read. This is a limitation of Docs, not of grAImmer.</p>
-      <p class="note"><strong>Slack asks extensions not to run</strong> via a <code>data-gramm="false"</code> attribute that its editor sets automatically. grAImmer ignores it, because that flag exists to stop extensions writing into the editor and grAImmer never does &mdash; underlines are drawn on a separate layer. Turn grAImmer off above if you would rather it respected the request.</p>
+      <p class="note"><strong>Slack asks extensions not to run</strong> via a <code>data-gramm="false"</code> attribute that its editor sets automatically. grAImmer ignores it, because that flag exists to stop extensions writing into the editor and grAImmer never does &mdash; underlines are drawn on a separate layer. If you would rather it respected the request, turn grAImmer off for Slack from the toolbar icon.</p>
     </div>
   </section>
 
