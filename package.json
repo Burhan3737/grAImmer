@@ -11,6 +11,7 @@
     "test:harness": "npm run harness && node test/verify-harness.mjs",
     "test:selectors": "node test/verify-selectors.mjs",
     "test:e2e": "npm run build && node test/e2e-extension.mjs",
+    "test:clone": "node test/verify-clone.mjs",
     "test:all": "npm test && npm run test:selectors && npm run test:harness && npm run test:e2e"
   },
   "devDependencies": {

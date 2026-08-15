@@ -104,6 +104,12 @@ npm run test:selectors  # 32 selector - profiles vs the markup each site ships
 npm run test:harness    # 12 harness  - the engine in real Chromium
 npm run test:e2e        # 30 e2e      - the built extension in a throwaway profile
 npm run test:all        # all four (137 checks)
+
+# Verifies what someone else actually receives: a clone, loaded straight
+# into Chrome with no install and no build. Catches a file missing from the
+# repo, or mangled by checkout.
+git clone . /tmp/graimmer-check
+npm run test:clone -- /tmp/graimmer-check
 ```
 
 The selector suite exists because a typo there is the most dangerous failure in the codebase: the extension loads, attaches to nothing, reports no error, and looks exactly like being broken. Nothing else would catch it.
