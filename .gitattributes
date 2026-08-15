@@ -1,10 +1,13 @@
-# The Hunspell dictionary is third-party data, not source. Git's line-ending
-# normalisation rewrites every one of its ~50,000 lines on checkout, which
-# produces noisy diffs and makes the file that ships differ byte-for-byte from
-# the file that was tested. nspell tolerates CRLF today; nothing guarantees a
-# future parser will.
-extension/dictionaries/* -text
+# Order matters here: the LAST matching pattern wins, so the general rule
+# comes first and specific overrides follow it.
 
-# Everything else is normalised to LF in the repository and checked out
-# however the platform prefers.
+# Source is normalised to LF in the repository and checked out however the
+# platform prefers.
 * text=auto
+
+# The Hunspell dictionary is third-party data, not source. Normalising it
+# rewrites all ~50,000 lines on checkout, so the file a user loads differs
+# byte-for-byte from the file that was tested. nspell tolerates CRLF today;
+# nothing guarantees a future parser will.
+extension/dictionaries/en.dic -text
+extension/dictionaries/en.aff -text
