@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>grAImmer</title>
+<style>
+:root {
+  --surface: #fff; --sunken: #f4f6f4; --ink: #171a1c;
+  --muted: #626a70; --line: #dde2df; --accent: #2a5fb8; --spell: #c4302b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #1a1e21; --sunken: #15181a; --ink: #e7eaea;
+    --muted: #9aa3a8; --line: #2c3236; --accent: #7aa8f0; --spell: #f0736c;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  width: 268px; margin: 0;
+  background: var(--surface); color: var(--ink);
+  font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px; line-height: 1.5;
+}
+header {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 12px 14px; border-bottom: 1px solid var(--line);
+}
+header h1 { margin: 0; font-size: 15px; font-weight: 620; letter-spacing: -.01em; }
+header h1 .ai { color: var(--spell); }
+header .host {
+  margin-left: auto; font-size: 11px; color: var(--muted);
+  max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 14px; border-bottom: 1px solid var(--line);
+}
+.row label { flex: 1; cursor: pointer; }
+.row .sub { display: block; font-size: 11.5px; color: var(--muted); }
+.row input { cursor: pointer; }
+.state {
+  padding: 10px 14px; font-size: 12.5px; color: var(--muted);
+  background: var(--sunken); border-bottom: 1px solid var(--line);
+}
+.state[data-kind="off"] { color: var(--spell); }
+footer { padding: 10px 14px; }
+footer a { color: var(--accent); font-size: 12.5px; text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>gr<span class="ai">AI</span>mmer</h1>
+  <span class="host" id="host">—</span>
+</header>
+
+<div class="state" id="state">Checking this site.</div>
+
+<div class="row">
+  <label for="site">
+    Check this site
+    <span class="sub" id="site-sub">Underline mistakes as you type here.</span>
+  </label>
+  <input type="checkbox" id="site" checked>
+</div>
+
+<div class="row">
+  <label for="global">
+    Check every site
+    <span class="sub">Turn grAImmer off everywhere.</span>
+  </label>
+  <input type="checkbox" id="global" checked>
+</div>
+
+<footer><a href="#" id="open-options">All settings and personal dictionary →</a></footer>
+
+<script src="popup.js"></script>
+</body>
+</html>

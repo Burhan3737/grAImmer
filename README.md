@@ -8,20 +8,28 @@ The name is a joke. **There is no AI in it.** Checking is done by pattern rules 
 
 ## Install
 
-Not on the Chrome Web Store — load it unpacked.
+Not on the Chrome Web Store — load it unpacked. **No build step required:** the
+ready-to-load extension is committed in the `extension/` folder.
+
+1. Go to `chrome://extensions` in Chrome or Edge
+2. Turn on **Developer mode** (top right)
+3. **Load unpacked** → select the **`extension`** folder in this repo
+
+That is the whole install. You do not need Node, npm, or anything else unless
+you intend to change the code.
+
+### If you change the source
 
 ```bash
 npm install
-npm run build          # produces dist/extension
+npm run build     # rebuilds extension/ from src/
 ```
 
-Then in Chrome or Edge:
+Then press reload on the extension card in `chrome://extensions`.
 
-1. Go to `chrome://extensions`
-2. Turn on **Developer mode** (top right)
-3. **Load unpacked** → select `dist/extension`
-
-Re-run `npm run build` and press reload on the extension card to pick up changes.
+`extension/` is generated from `src/` and is committed deliberately, so the
+repo can be cloned and loaded straight into a browser. Edit `src/`, never
+`extension/` — a build overwrites it.
 
 ---
 

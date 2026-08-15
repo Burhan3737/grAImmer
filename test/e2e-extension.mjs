@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const extensionPath = join(root, 'dist/extension');
+const extensionPath = join(root, 'extension');
 
 const checks = [];
 function record(name, pass, detail = '') {
@@ -73,11 +73,19 @@ try {
   record('no page errors from the content script', pageErrors.length === 0, pageErrors.join(' | '));
 
   /* ------------------------------------------- 4. spelling comes back */
+  // Waits for the condition rather than a fixed delay. This is the FIRST
+  // spelling request, so it pays the cold worker's dictionary load on top of
+  // the debounce — a fixed timeout makes the whole suite flaky on a busy
+  // machine, which is worse than no test because it teaches people to
+  // re-run rather than investigate.
   await page.fill('#plain', 'I have recieved the documnt already.');
-  await page.waitForTimeout(1800);
-  const spellingMarks = await page.locator('.graimmer-mark[data-severity="spelling"]').count();
+  let spellingMarks = 0;
+  try {
+    await page.waitForSelector('.graimmer-mark[data-severity="spelling"]', { timeout: 20000 });
+    spellingMarks = await page.locator('.graimmer-mark[data-severity="spelling"]').count();
+  } catch { /* leave at 0 so the assertion reports the real failure */ }
   record('spelling underlines arrive from the background worker',
-    spellingMarks >= 1, `expected >=1 spelling marks, got ${spellingMarks}`);
+    spellingMarks >= 1, `no spelling marks within 20s — the worker never answered`);
 
   /* -------------------------- 5. proper nouns and URLs stay unflagged */
   await page.fill('#plain', 'Ping Sarah about Kubernetes at grafana.acme.io/x8f2 re INFRA-4471.');
@@ -298,10 +306,13 @@ try {
   await page.bringToFront();
   await page.click('#plain');
   await page.fill('#plain', 'The zzquux service is fine.');
-  await page.waitForTimeout(2000);
-  const beforeAdd = await page.locator('.graimmer-mark[data-severity="spelling"]').count();
+  let beforeAdd = 0;
+  try {
+    await page.waitForSelector('.graimmer-mark[data-severity="spelling"]', { timeout: 15000 });
+    beforeAdd = await page.locator('.graimmer-mark[data-severity="spelling"]').count();
+  } catch { /* reported by the assertion below */ }
   record('an unknown word is flagged before it is added',
-    beforeAdd >= 1, `expected a spelling mark, got ${beforeAdd}`);
+    beforeAdd >= 1, 'no spelling mark within 15s');
 
   const opts2 = await context.newPage();
   await opts2.goto(`chrome-extension://${extensionId}/options.html`);

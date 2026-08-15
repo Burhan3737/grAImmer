@@ -1,6 +1,9 @@
 node_modules/
+
+# Scratch build output: the test harness and screenshots.
+# The loadable extension lives in extension/ and IS tracked, so the repo can
+# be cloned and loaded into Chrome without installing anything.
 dist/
-build/
 
 # Visual brainstorming companion scratch — session state, not source
 .superpowers/
